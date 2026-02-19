@@ -1,0 +1,9 @@
+{
+  "name": "my-project",
+  "mode": "vendored",
+  "dependencies": {
+    "tessl/npm-mastra": {
+      "version": "1.0.5"
+    }
+  }
+}

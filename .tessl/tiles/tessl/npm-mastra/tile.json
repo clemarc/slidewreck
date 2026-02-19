@@ -1,0 +1,8 @@
+{
+  "name": "tessl/npm-mastra",
+  "version": "1.0.5",
+  "docs": "docs/index.md",
+  "describes": "pkg:npm/mastra@1.0.1",
+  "summary": "Command-line tool for creating, developing, and deploying AI-powered applications with the Mastra framework",
+  "private": false
+}
