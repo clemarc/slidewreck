@@ -1,0 +1,97 @@
+# generated: 2026-02-23
+# project: bmad-mastra-presentation
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-23
+project: bmad-mastra-presentation
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: End-to-End Talk Generation (MVP)
+  epic-1: in-progress
+  1-1-project-scaffolding-infrastructure-setup: review
+  1-2-researcher-agent-core-web-tools: backlog
+  1-3-supplementary-research-tools: backlog
+  1-4-writer-agent-writing-tools: backlog
+  1-5-pipeline-input-schema-validation: backlog
+  1-6-end-to-end-pipeline-workflow-with-human-gates: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Advanced Pipeline Control
+  epic-2: backlog
+  2-1-architect-agent-timing-tool: backlog
+  2-2-optional-constraints-input: backlog
+  2-3-structure-selection-gate-with-loopback: backlog
+  2-4-format-based-conditional-step-skipping: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Reference-Informed Research
+  epic-3: backlog
+  3-1-rag-infrastructure-best-practices-knowledge-base: backlog
+  3-2-reference-material-upload-indexing: backlog
+  3-3-rag-augmented-research: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Quality Evaluation & Insights
+  epic-4: backlog
+  4-1-eval-scorers-hook-strength-narrative-coherence: backlog
+  4-2-eval-scorers-pacing-distribution-jargon-density: backlog
+  4-3-automated-eval-suite-scorecard: backlog
+  4-4-eval-result-storage-trend-analysis: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Visual Presentation Design
+  epic-5: backlog
+  5-1-designer-agent-slide-specification-tools: backlog
+  5-2-mermaid-diagram-generation-rendering: backlog
+  5-3-parallel-asset-creation-pipeline: backlog
+  5-4-optional-slide-review-gate: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Style Learning & Personalization
+  epic-6: backlog
+  6-1-cold-start-edit-diff-capture-at-gate-3: backlog
+  6-2-style-learner-workflow-step: backlog
+  6-3-style-augmented-writing: backlog
+  6-4-cross-session-metadata-data-management: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Complete Talk Package & Coaching
+  epic-7: backlog
+  7-1-coach-agent-past-talk-rag-tool: backlog
+  7-2-preparation-package-generation: backlog
+  7-3-output-packaging-download: backlog
+  epic-7-retrospective: optional

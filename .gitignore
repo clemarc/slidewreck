@@ -141,5 +141,6 @@ vite.config.ts.timestamp-*
 .cursor/
 .codex/
 .gemini/
+.mastra/
 tmp/
 .env
