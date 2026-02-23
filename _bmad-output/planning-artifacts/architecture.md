@@ -1,383 +1,746 @@
 ---
-workflowType: architecture
-sourceDocument: PRD.md
-lastEdited: '2026-02-19'
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
+inputDocuments:
+  - 'PRD.md'
+  - 'PRD-validation-report.md'
+  - 'architecture.md (pre-existing reference)'
+workflowType: 'architecture'
+lastStep: 8
+status: 'complete'
+completedAt: '2026-02-20'
+project_name: 'bmad-mastra-presentation'
+user_name: 'Clément'
+date: '2026-02-20'
 ---
 
-# TalkForge — Architecture Document
+# Architecture Decision Document
 
-## Conference Talk Generator Pipeline — Built with Mastra
+_This document builds collaboratively through step-by-step discovery. Sections are appended as we work through each architectural decision together._
 
-> Extracted from the PRD to maintain separation of concerns. This document covers system design details; the [PRD](./PRD.md) covers requirements and scope.
+## Project Context Analysis
 
----
+### Requirements Overview
 
-## 1. Agents
+**Functional Requirements:**
+27 FRs across 5 categories, phased over 7 increments:
 
-The system comprises 6 specialised agents. Each has a distinct system prompt, persona, tool set, and output schema.
+- **Input Handling (FR-1–6):** Free-text topic, audience level selection, format selection, optional constraints, reference material upload, input validation. Architecturally straightforward — form inputs passed as workflow `inputData`.
+- **Pipeline Execution (FR-7–12):** End-to-end generation, suspend/resume at human gates, structured feedback passthrough, rejection with loopback, parallel asset creation, conditional step skipping. This is the architectural core — a Mastra workflow with suspend/resume gates, branching, and parallel steps.
+- **Output Generation (FR-13–17):** Slide specs + diagrams, speaker notes with timing markers, prep package, eval scorecard, downloadable ZIP. Multiple output formats produced by different agents, assembled at the end.
+- **Memory & Learning (FR-18–22):** Cold start without style data, edit diff detection at gates, style insight persistence by category, style-augmented prompt retrieval, cross-session talk metadata. Requires Mastra memory integration with a style learning feedback loop.
+- **Evals (FR-24–27):** Automated eval suite post-generation, result storage for trends, scorecard display, meta-evals after 3+ sessions. Mastra eval registry with both LLM-as-judge and heuristic scorers.
 
-### 1.1 The Researcher
+**Non-Functional Requirements:**
+24 NFRs across 6 categories that shape architecture:
 
-**Role:** Discover the most compelling, current, and surprising information about the given topic.
+- **Performance:** <5min total generation, <60s per step, parallel execution for assets, <30s slide generation. Implies async/parallel workflow steps and efficient tool implementations.
+- **Reliability:** Suspend state survives restarts (requires persistent storage provider), 3x retry with backoff, graceful degradation for optional features, non-blocking reference indexing failures.
+- **Observability:** Per-step logging (tokens, latency, model), step status tracking, queryable eval results, memory operation logging. Mastra's built-in tracing + Studio Observability tab covers most of this.
+- **Extensibility:** New agents via config only, new evals via registry entry, pluggable tool registry, template-driven slide layouts. Architecture must be registry-based, not hardcoded.
+- **Data & Privacy:** All data local/user-controlled, no third-party data sharing beyond LLM provider, user can view/delete personal data, data export as JSON.
+- **Developer Experience:** Single install + start command, agents testable in isolation, eval suite runnable independently, single `.env` config file.
 
-**System prompt direction:**
-- Prioritise content from the last 6 months
-- Surface counterintuitive findings and production war stories over theoretical overviews
-- Identify existing talks on the same topic (to differentiate, not duplicate)
-- Extract concrete numbers, benchmarks, and quotable soundbites
-- Flag contrarian angles and hot takes worth exploring
+**Scale & Complexity:**
 
-**Tools:**
-- `webSearch` — Mastra-integrated web search for articles, blog posts, papers
-- `fetchPage` — Deep-read a specific URL to extract full content
-- `findExistingTalks` — Search YouTube / conference sites for prior art on the topic
-- `extractStats` — Pull structured data (numbers, benchmarks, comparisons) from text
+- Primary domain: **Backend/CLI with Studio UI** (Node.js/TypeScript, Mastra framework)
+- Complexity level: **Medium-high** — multi-agent orchestration with memory, RAG, and evals, but single-user, no multi-tenancy
+- Estimated architectural components: ~15 (up to 6 agents, 1 workflow, up to 13 tools, up to 3 RAG knowledge bases, 1 memory system, 1 eval suite, 1 storage layer)
 
-**Output schema:**
-```typescript
-interface ResearchBrief {
-  topic: string;
-  summary: string;
-  keyThemes: { theme: string; evidence: string; noveltyScore: 1 | 2 | 3 | 4 | 5 }[];
-  stats: { stat: string; source: string; recency: string }[];
-  existingTalks: { title: string; speaker: string; url: string; keyTakeaway: string }[];
-  suggestedAngles: { angle: string; whyCompelling: string }[];
-  contrarian: { claim: string; evidence: string }[];
-}
+### Architectural Decision: Runtime Model
+
+**Decision:** Server-based with Mastra Studio UI as primary development and interaction interface.
+
+**Rationale:**
+- `mastra dev` serves both the Studio UI (workflow visualization, agent testing, observability traces) and the REST API on `localhost:4111`
+- Human gates handled via Studio UI: workflow suspends, user reviews output in the UI, resumes with feedback
+- API endpoints available for all workflow operations (`start-async`, `resume`, `runs/:runId`)
+- Storage-backed state persistence ensures suspend/resume survives process restarts
+- Studio provides built-in observability, eval scorecard display, and tool testing — reducing custom UI work
+- Learning goal: hands-on experience with Studio as part of the Mastra ecosystem
+
+**Flow:** User starts run via Studio UI or API -> agents execute with real-time trace visibility -> workflow suspends at human gates -> user reviews/provides feedback in Studio -> resume -> repeat until pipeline completes.
+
+### First Principles — Key Architectural Constraints
+
+The following principles were derived from first-principles analysis and should guide all downstream decisions:
+
+**1. Agent vs. workflow step distinction**
+Not every role needs to be a Mastra Agent. An "agent" should be used when the role requires *autonomous reasoning with distinct tool access*. Roles that perform structured transformation on existing content (e.g., Style Learner analysing diffs) may be better modelled as workflow steps with specific LLM prompts. Each role should be evaluated individually during architecture decisions.
+
+**2. Human gates must earn their place**
+Each suspend/resume gate adds friction and complexity. Gates should exist where *the cost of proceeding with bad output exceeds the cost of pausing*. Research and structure selection are high-leverage (shape everything downstream). Script review is medium. Slide review is lower. Gate count is a design decision to be made explicitly, not inherited from the prior draft.
+
+**3. Learning breadth over production depth**
+Success criteria are learning-oriented (exercise all 7 Mastra capabilities, be able to demo/present Mastra). Each phase should introduce one new Mastra capability with enough depth to understand it thoroughly, but avoid front-loading complexity that belongs in later phases. The pre-existing architecture's full detail (13 tools, 3 RAG KBs, 10+4 evals) represents the end-state vision, not the per-phase target.
+
+**4. Storage strategy resolved**
+PostgreSQL + pgvector from Phase 1. Consistent infrastructure throughout all phases. Docker Compose makes setup a one-liner. See Core Architectural Decisions for details.
+
+**5. Pre-existing architecture is a proposal, not a spec**
+The prior `architecture.md` contains useful ideas (agent roles, pipeline structure, TypeScript interfaces, memory key patterns) but predates this decision-making process. Each element should be evaluated and decided fresh. Interfaces and schemas should emerge from architectural decisions, not precede them.
+
+### Technical Constraints & Dependencies
+
+- **Mastra framework** as the orchestration layer — all agents, tools, workflows, RAG, memory, and evals built on Mastra APIs
+- **Anthropic Claude** as the primary LLM provider for all agents
+- **Storage provider** — PostgreSQL + pgvector from Phase 1 via Docker Compose (AD-1 resolved)
+- **Node.js >= 22.13.0** required by Mastra
+- **TypeScript with ES2022 modules** — Mastra requirement (no CommonJS)
+- **pnpm** as package manager (per PRD tech stack)
+- **Phased delivery** — each phase must be independently runnable; architecture must support incremental agent/tool/eval addition without modifying core
+
+### Cross-Cutting Concerns Identified
+
+1. **Suspend/resume state management** — every human gate needs consistent suspend payload structure, storage-backed persistence, and Studio UI compatibility
+2. **Observability** — all agents and tools must emit structured traces (NFR-9, NFR-10); Mastra's built-in tracing + Studio covers this if agents/tools follow conventions
+3. **Style learning integration** — spans the Writer, human gate diff capture, style analysis, memory persistence, and dynamic prompt augmentation; touches 4 of 7 phases
+4. **Registry-based extensibility** — agents, tools, evals, and slide layouts must all be addable via config/registry without modifying existing code (NFR-13–16)
+5. **Graceful degradation** — optional features (image generation, reference indexing) must fail without blocking the pipeline (NFR-7, NFR-8)
+6. **Data locality** — all user data stays local; only LLM API calls leave the machine (NFR-17, NFR-18)
+7. **Agent vs. step evaluation** — each role in the pipeline should be assessed for whether it warrants a full Mastra Agent (autonomous + tools) or a simpler workflow step with an LLM call
+
+### Resolved Architectural Decisions (from Context Analysis)
+
+All pending decisions from context analysis have been resolved in Core Architectural Decisions:
+
+- **AD-1: Storage Strategy** — Resolved: PostgreSQL + pgvector from Phase 1
+- **AD-2: Agent vs. Workflow Step** — Resolved: 5 Agents + 1 workflow step (Style Learner)
+- **AD-3: Human Gate Placement** — Resolved: 4 gates, Gate 4 optional (auto-approve by default)
+- **AD-4: Pre-existing Architecture** — Confirmed: treated as proposals, not specs
+
+## Starter Template Evaluation
+
+### Primary Technology Domain
+
+**Mastra framework project** (Node.js/TypeScript backend with Studio UI) — based on project requirements for multi-agent orchestration with workflows, RAG, memory, and evals.
+
+### Starter Options Considered
+
+**Option A: `create-mastra` CLI (Official Scaffolding)**
+```bash
+npx create-mastra@latest -c agents,workflows,tools -l anthropic
+```
+- Generates standard project structure with example agent, workflow, and tool
+- Sets up `mastra dev` and `mastra build` scripts
+- Current version: mastra 1.3.1
+- **Pros:** Official path, Studio-ready out of the box, example code shows Mastra patterns
+- **Cons:** Example code needs cleanup, may not set up pnpm (defaults to npm), no Vitest config, no workflows/evals/RAG packages pre-installed (only `@mastra/core`)
+
+**Option B: Manual Installation**
+```bash
+mkdir talkforge && cd talkforge
+pnpm init
+pnpm add -D typescript @types/node mastra@latest
+pnpm add @mastra/core@latest zod@^4
+```
+- Full control over project structure, package manager, and configuration
+- Set up pnpm, Vitest, exact tsconfig from the start
+- No example code to clean up
+- **Pros:** Clean slate matching our exact tech stack, no leftover scaffolding
+- **Cons:** More manual setup, need to know the right Mastra file structure conventions
+
+**Option C: Template-Based (`deep-research` or similar)**
+- Closest existing template to our use case (web browsing + research synthesis)
+- But designed for a specific use case, not a multi-agent workflow pipeline
+- **Pros:** Working example of web search + agent patterns
+- **Cons:** Significant modification needed, template structure may fight our architecture
+
+### Selected Starter: Manual Installation (Option B)
+
+**Rationale for Selection:**
+
+1. **Exact tech stack control** — pnpm as package manager (PRD requirement), Vitest for testing, precise tsconfig matching Mastra's ES2022 requirements
+2. **No cleanup overhead** — `create-mastra` generates example weather agent/tool code that we'd immediately delete; manual setup starts clean
+3. **Learning value** — manually wiring up `@mastra/core`, registering agents and workflows, and configuring `mastra dev` teaches the framework fundamentals better than scaffolded code
+4. **Incremental dependency addition** — Phase 1 needs only `@mastra/core` + `zod`; RAG packages, memory packages, and eval packages added phase-by-phase as needed
+5. **Project structure matches our architecture** — we design the folder structure around our agents/workflows/tools, not around an example app
+
+**Initialization Commands:**
+
+```bash
+mkdir talkforge && cd talkforge
+pnpm init
+pnpm add -D typescript @types/node mastra@latest vitest
+pnpm add @mastra/core@latest zod@^4
 ```
 
-### 1.2 The Architect
+### Architectural Decisions Provided by Starter
 
-**Role:** Design the narrative structure of the talk. Offer 3 structural options, each with timing estimates.
+**Language & Runtime:**
+- TypeScript with ES2022 target
+- `moduleResolution: "bundler"`
+- Strict mode enabled
+- Node.js >= 22.13.0
 
-**System prompt direction:**
-- Great talks have rhythm — tension and release, setup and payoff
-- Always include a hook in the first 60 seconds (never "In this talk I will...")
-- Understand the difference between a 10-minute lightning talk and a 45-minute keynote
-- Account for live demo slots and audience interaction moments
+**Build Tooling:**
+- `mastra dev` — development server with hot reload + Studio UI
+- `mastra build` — production build
+- No additional bundler needed (Mastra handles compilation)
 
-**Available structures to propose:**
-1. **Problem → Solution → Demo** — The classic technical talk
-2. **Story Arc** — Character, conflict, rising action, climax, resolution
-3. **Hot Take** — Controversial claim → evidence → nuanced reversal
-4. **Live Build** — Build something from scratch, teaching as you go
-5. **Compare & Contrast** — Old way vs new way, with live proof
+**Testing Framework:**
+- Vitest (per PRD tech stack) — configured manually
+- Agents testable in isolation via Studio UI + programmatic tests
 
-**Tools:**
-- `estimateTiming` — Given a section outline, estimate minutes based on word count and demo slots
-
-**Output schema:**
-```typescript
-interface TalkStructure {
-  name: string;
-  description: string;
-  estimatedDuration: number; // minutes
-  sections: {
-    title: string;
-    purpose: string;
-    estimatedMinutes: number;
-    contentType: "narrative" | "technical" | "demo" | "interaction" | "transition";
-    keyPoints: string[];
-  }[];
-  hook: string; // the opening 60 seconds concept
-}
+**Code Organization:**
+```
+src/
+├── mastra/
+│   ├── index.ts          # Mastra entry point (registers agents, workflows)
+│   ├── agents/           # Agent definitions (1 file per agent)
+│   ├── workflows/        # Workflow definitions
+│   └── tools/            # Tool definitions
 ```
 
-### 1.3 The Writer
+**Development Experience:**
+- `pnpm dev` → `mastra dev` (Studio UI on localhost:4111)
+- `pnpm build` → `mastra build`
+- `pnpm test` → `vitest`
+- `.env` for API keys (ANTHROPIC_API_KEY)
 
-**Role:** Write the full speaker script — what the speaker will actually say, not slide content.
+**Note:** Project initialization using these commands should be the first implementation story.
 
-**System prompt direction:**
-- Write like a human speaks: short sentences, conversational, direct
-- Never use filler phrases like "So, in this talk..."
-- Insert markers: `[PAUSE]`, `[CLICK]`, `[ASK AUDIENCE]`, `[DEMO START]`, `[DEMO END]`
-- Estimate seconds per section in margins
-- Start with a story, anecdote, or provocative question — never a self-introduction
+## Core Architectural Decisions
 
-**Dynamic prompt augmentation:** The Writer's system prompt is augmented at runtime with style preferences retrieved from memory (see Section 5: Memory System).
+### Decision Priority Analysis
 
-**Tools:**
-- `wordCountToTime` — Convert word count to speaking time at 150 wpm
-- `checkJargon` — Flag unexplained technical terms for the given audience level
+**Critical Decisions (Block Implementation):**
+- Storage provider (AD-1): PostgreSQL + pgvector from Phase 1
+- Agent vs. step split (AD-2): 5 Agents + 1 workflow step
+- Human gate placement (AD-3): 4 gates, Gate 4 optional
+- LLM model selection: Tiered by role complexity
+- Workflow composition pattern: Mastra's `.then()` / `.parallel()` / `.branch()` / `.dountil()`
 
-**Output schema:**
-```typescript
-interface SpeakerScript {
-  totalEstimatedMinutes: number;
-  totalWordCount: number;
-  sections: {
-    title: string;
-    speakerNotes: string; // the actual spoken words with markers
-    estimatedSeconds: number;
-    slideReference: string; // which slide this corresponds to
-  }[];
-  first60Seconds: string; // extracted for eval
-}
-```
+**Important Decisions (Shape Architecture):**
+- Output schema approach: Strict per-phase, evolve as phases are built
+- Error handling: 3x retry with backoff, graceful degradation for optional features
 
-### 1.4 The Designer
+**Deferred Decisions (Per-Phase):**
+- RAG chunking strategy and embedding model (Phase 3)
+- Eval scorer definitions and registry structure (Phase 4)
+- Slide output format — PPTX, reveal.js, Slidev, or other (Phase 5)
+- Memory key patterns and prompt augmentation mechanics (Phase 6)
+- Output packaging and download format (Phase 7)
 
-**Role:** Generate slide-by-slide specifications and visual assets. Does NOT produce final slides — provides structured specs that a rendering tool converts.
+### Data Architecture
 
-**System prompt direction (opinionated slide rules):**
-- Max 6 words on a title slide
-- No bullet points ever — use visuals, diagrams, or single statements
-- One idea per slide
-- Code slides: max 15 lines, highlight the key line with a comment or colour
-- Use Mermaid for any architecture or flow diagrams
-- Every 5th slide should be a "breathing" slide (full-bleed image, or a single quote)
-- Suggest dark theme for code-heavy talks, light for business/strategy talks
+**Storage Provider:** PostgreSQL + pgvector
+- Package: `@mastra/pg` + `pg`
+- pgvector v0.8.1
+- Docker Compose with `pgvector/pgvector:pg17` image
+- Connection: `DATABASE_URL` env var
+- Rationale: Consistent infrastructure from Phase 1. Covers workflow state, RAG vectors, memory, eval results, and traces. Docker Compose makes setup a one-liner.
 
-**Tools:**
-- `generateMermaid` — Create Mermaid diagram syntax from a description
-- `suggestLayout` — Return a layout template name from a predefined set
-- `generateColourPalette` — Create a palette from topic mood and audience
+**Mastra Tables (auto-created):**
+- `mastra_workflow_snapshot` — suspend/resume state
+- `mastra_threads` / `mastra_messages` — conversation memory
+- `mastra_evals` / `mastra_scorers` — eval results
+- `mastra_traces` — observability data
+- `mastra_resources` — working memory
 
-**Output schema:**
-```typescript
-interface SlideSpec {
-  slideNumber: number;
-  layout: "title" | "statement" | "diagram" | "code" | "image" | "quote" | "section-break" | "comparison" | "blank";
-  content: {
-    heading?: string;
-    body?: string;
-    code?: { language: string; snippet: string; highlightLine?: number };
-    mermaid?: string;
-    imagePrompt?: string; // for AI image generation
-    quote?: { text: string; attribution: string };
-  };
-  speakerNoteRef: string;
-  designNotes: string; // colour, font, animation suggestions
-}
+**Output Schemas:** Zod structured output per agent, defined phase-by-phase. Pre-existing TypeScript interfaces from prior architecture used as reference, not as given.
 
-interface DeckSpec {
-  title: string;
-  theme: "dark" | "light";
-  palette: { primary: string; secondary: string; accent: string; background: string; text: string };
-  font: { heading: string; body: string; code: string };
-  slides: SlideSpec[];
-  diagrams: { id: string; mermaid: string }[];
-}
-```
+### LLM Model Selection
 
-### 1.5 The Coach
+Tiered by role complexity to balance quality, speed, and cost:
 
-**Role:** Review the complete talk and produce a speaker prep package.
+| Role | Model | Rationale |
+|------|-------|-----------|
+| Researcher | `anthropic/claude-sonnet-4-5` | Breadth + tool use, moderate complexity |
+| Architect | `anthropic/claude-sonnet-4-5` | Structural thinking, moderate complexity |
+| Writer | `anthropic/claude-opus-4-6` | Highest quality — creative long-form output |
+| Designer | `anthropic/claude-sonnet-4-5` | Structured spec generation, tool-heavy |
+| Coach | `anthropic/claude-sonnet-4-5` | Synthesis from existing content |
+| Style Learner (step) | `anthropic/claude-haiku-4-5` | Narrow diff analysis, structured output |
+| Eval judges | `anthropic/claude-haiku-4-5` | Cost-efficient for repetitive scoring |
 
-**System prompt direction:**
-- Think about what the audience will remember the next day — if the answer is "nothing specific", the hook needs sharpening
-- Anticipate tough questions, especially snarky or contrarian ones
-- Prepare "Plan B" content for when demos fail
-- Write promotional copy that would make someone click on the talk in a conference schedule
+### Agent Architecture (AD-2 Resolution)
 
-**Tools:**
-- `queryPastTalks` — RAG query over previous talk data to check for content overlap
+**5 Agents + 1 Workflow Step:**
 
-**Output schema:**
-```typescript
-interface PrepPackage {
-  abstract: string; // 1-paragraph conference program copy
-  anticipatedQA: { question: string; suggestedAnswer: string; difficulty: "easy" | "medium" | "hard" }[];
-  timingCheatSheet: { section: string; targetTime: string; flexNotes: string }[];
-  demoFailurePlan: { demoSection: string; fallbackScript: string }[];
-  socialMedia: { platform: "twitter" | "linkedin" | "mastodon"; copy: string }[];
-  overallAssessment: string;
-}
-```
+All agents composed into workflow via `createStep(agent, { structuredOutput: { schema } })`.
 
-### 1.6 The Style Learner (Internal Agent)
+| Role | Type | Phase | Tools | Model Tier |
+|------|------|-------|-------|------------|
+| Researcher | Agent | 1 | webSearch, fetchPage, findExistingTalks, extractStats | Sonnet |
+| Architect | Agent | 2 | estimateTiming | Sonnet |
+| Writer | Agent | 1 | wordCountToTime, checkJargon | Opus |
+| Designer | Agent | 5 | generateMermaid, suggestLayout, generateColourPalette | Sonnet |
+| Coach | Agent | 7 | queryPastTalks (RAG) | Sonnet |
+| Style Learner | Workflow step | 6 | None — direct LLM call with Zod output | Haiku |
 
-**Role:** Analyse diffs between AI-generated content and human-edited content to extract style preferences. Not user-facing.
+### Human Gate Placement (AD-3 Resolution)
 
-**System prompt direction:**
-- Be specific: "replaced formal transitions with casual ones" not "made it more casual"
-- Extract patterns across vocabulary, sentence structure, section ordering, tone, and formatting
-- Flag when a preference contradicts a previously stored one
+| Gate | After | Phase | Behaviour |
+|------|-------|-------|-----------|
+| Gate 1 | Researcher output | Phase 1 | **Mandatory** — user reviews research brief, provides feedback |
+| Gate 2 | Architect output | Phase 2 | **Mandatory** — user picks/mixes from 3 structure options |
+| Gate 3 | Writer output | Phase 1 | **Mandatory** — user reviews script; diff captured for style learning (Phase 6) |
+| Gate 4 | Designer output | Phase 5 | **Optional** — auto-approve by default, user can opt-in to review via input config |
 
-**Output schema:**
-```typescript
-interface StyleInsight {
-  category: "vocabulary" | "tone" | "structure" | "pacing" | "formatting" | "audience-calibration";
-  observation: string;
-  confidence: "high" | "medium" | "low";
-  examples: { original: string; revised: string }[];
-}
-```
+Each gate uses Mastra's `suspend()` with a payload containing the agent's output for review. Resume passes `resumeData` with approval status and feedback.
 
----
+### Workflow Composition Pattern
 
-## 2. Workflow Pipeline
+| Pattern | Mastra API | TalkForge Usage |
+|---------|-----------|-----------------|
+| Sequential | `.then()` | Agent → gate → agent → gate chain |
+| Transform | `.map()` | Reshape agent output between steps |
+| Human gate | `suspend()` / `resume()` | All 4 review gates |
+| Loopback | `.dountil()` | Architect re-generation on rejection (Phase 2) |
+| Conditional | `.branch()` | Skip steps by talk format (Phase 2) |
+| Parallel | `.parallel()` | Asset creation: slides + Mermaid + images (Phase 5) |
+| Structured output | `createStep(agent, { structuredOutput })` | All agent steps |
 
-The pipeline is a Mastra workflow with sequential steps, parallel branches, conditional logic, and suspend/resume gates.
+### Error Handling Strategy
 
-```
-INPUT: { topic, audience, format, constraints?, referenceMaterial? }
+| Concern | Strategy |
+|---------|----------|
+| LLM call failure | 3 retries with exponential backoff (provider-level) |
+| Tool failure | 3 retries. On persistent failure, return partial result with warning. |
+| Optional feature failure | Catch, log warning, substitute placeholder, continue pipeline (NFR-7) |
+| Human gate timeout | No timeout — workflow stays suspended until user resumes |
+| Workflow-level failure | Fail run, preserve state in Postgres. User inspects in Studio and can retry. |
+| Reference indexing failure | Warn user, proceed without reference context (NFR-8) |
 
-Step 1: research           [Researcher agent, parallel tool calls]
-Step 2: review-research    [SUSPEND — human gate]
-Step 3: structure          [Architect agent, produces 3 options]
-Step 4: review-structure   [SUSPEND — human gate, user picks/mixes]
-Step 5: script             [Writer agent, memory-augmented prompt]
-Step 6: review-script      [SUSPEND — human gate, diff captured for style learning]
-Step 7: design             [Designer agent, produces DeckSpec JSON]
-Step 8: build-assets       [Parallel: slide render + Mermaid render + image gen]
-Step 9: review-slides      [SUSPEND — human gate]
-Step 10: coaching          [Coach agent, produces PrepPackage]
-Step 11: run-evals         [Automated eval suite]
-Step 12: persist           [Save eval results + style insights to memory]
+### Authentication & Security
 
-OUTPUT: { slides, speakerNotes.md, prepPackage.md, evalScorecard }
-```
+- **Single-user local tool** — no authentication layer needed
+- **API keys** managed via `.env` file (`ANTHROPIC_API_KEY`, `DATABASE_URL`)
+- **Data locality** — all data stored in local Postgres; only LLM API calls leave the machine (NFR-17, NFR-18)
+- **No third-party data sharing** beyond configured LLM provider
 
-**Parallel execution in Step 8:**
-- Slide rendering from DeckSpec (tool, format TBD)
-- Mermaid diagrams rendered to SVG (tool)
-- AI-generated images for image slides (tool, optional)
+### Infrastructure & Deployment
 
-**Conditional logic:**
-- If `format === "lightning"`, skip the Coach's demo failure plans
-- If reference material is provided, run RAG indexing before Step 1
-- If the user rejects a structure in Step 4, loop back to Step 3 with feedback
+- **Runtime:** `mastra dev` on `localhost:4111` (Studio UI + REST API)
+- **Database:** Docker Compose with PostgreSQL + pgvector
+- **No cloud deployment** — local-only learning project
+- **Environment:** Single `.env` file with documented defaults (NFR-24)
 
-**Suspend/resume:**
-- Each human gate suspends the workflow
-- On resume, the workflow receives the user's feedback/edits as input to the next step
-- At script review (Step 6), the diff between original and edited script is passed to the Style Learner agent before proceeding
+### Decision Impact Analysis
 
----
+**Implementation Sequence:**
+1. Docker Compose + Postgres setup
+2. Project scaffolding (pnpm, tsconfig, Mastra entry point)
+3. Phase 1 agents (Researcher + Writer) with Zod output schemas
+4. Phase 1 workflow (sequential + 2 gates with suspend/resume)
+5. Studio verification (agents testable, workflow visualised, traces visible)
 
-## 3. Tools
+**Cross-Component Dependencies:**
+- All agents depend on Postgres (workflow state persistence)
+- Writer depends on memory system (Phase 6) for style augmentation
+- Coach depends on RAG (Phase 3/7) for past talk queries
+- Evals depend on all agents completing (Phase 4)
+- Style Learner depends on Gate 3 diff capture (Phase 6)
 
-| Tool Name | Type | Description |
-|-----------|------|-------------|
-| `webSearch` | Mastra built-in | Search the web for articles, papers, blog posts |
-| `fetchPage` | Mastra built-in | Fetch and extract content from a specific URL |
-| `findExistingTalks` | Custom | Search YouTube/conference sites for talks on the topic |
-| `extractStats` | Custom | Parse text for numbers, benchmarks, and structured data |
-| `estimateTiming` | Custom | Convert section outlines to minute estimates |
-| `wordCountToTime` | Custom | Convert word count to speaking duration at configurable WPM |
-| `checkJargon` | Custom | Flag unexplained technical terms for a given audience level |
-| `generateMermaid` | Custom | Generate Mermaid diagram syntax from natural language |
-| `suggestLayout` | Custom | Map slide content type to a layout template |
-| `generateColourPalette` | Custom | Create a 5-colour palette from topic and mood |
-| `buildSlides` | Custom | Generate slides from DeckSpec JSON (format TBD) |
-| `renderMermaid` | Custom | Render Mermaid syntax to SVG |
-| `queryPastTalks` | Custom (RAG) | Vector search over previous talk content |
+## Implementation Patterns & Consistency Rules
 
----
+### Naming Conventions
 
-## 4. RAG Strategy
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Agent IDs | kebab-case | `researcher`, `talk-architect`, `script-writer` |
+| Agent files | kebab-case `.ts` | `src/mastra/agents/researcher.ts` |
+| Agent exports | camelCase | `export const researcher = new Agent({...})` |
+| Tool IDs | kebab-case | `web-search`, `word-count-to-time` |
+| Tool files | kebab-case `.ts` | `src/mastra/tools/web-search.ts` |
+| Tool exports | camelCase | `export const webSearch = createTool({...})` |
+| Workflow IDs | kebab-case | `talkforge-pipeline` |
+| Zod schemas | PascalCase + `Schema` suffix | `ResearcherOutputSchema` |
+| Types | PascalCase, inferred from Zod | `type ResearcherOutput = z.infer<typeof ResearcherOutputSchema>` |
+| Variables/functions | camelCase | `const researchBrief = ...` |
+| Constants | UPPER_SNAKE_CASE | `const MAX_RETRIES = 3` |
+| Env vars | UPPER_SNAKE_CASE | `ANTHROPIC_API_KEY`, `DATABASE_URL` |
 
-### 4.1 Knowledge Bases
-
-**Ruleset KB — "Talk Best Practices"**
-- Curated collection of articles on conference talk design, storytelling, slide design principles
-- Sources: speaking coaches, popular "how to give a tech talk" posts, presentation design books
-- Indexed at project setup, updated manually
-- Used by: The Architect (structural patterns) and The Coach (assessment criteria)
-
-**Session History KB — "Past Talks"**
-- Every completed talk pipeline stores its final script, slide specs, and eval results
-- Chunked by section for granular retrieval
-- Used by: The Coach (avoid repetition, reference past work), The Style Learner (pattern recognition)
-
-**User Reference Material KB — "Source Docs"**
-- Optional: user uploads blog posts, documentation, code repos as reference for a specific talk
-- Indexed per-session, not persisted across sessions unless explicitly saved
-- Used by: The Researcher (incorporate user-provided context)
-
-### 4.2 Embedding & Retrieval
-
-- Use Mastra's built-in RAG with a vector store (Postgres with pgvector or Pinecone)
-- Chunk strategy: paragraph-level for articles, section-level for scripts
-- Metadata tags: `source`, `date`, `talkId`, `category`
-- Retrieval: top-k similarity search with metadata filtering
-
----
-
-## 5. Memory System
-
-### 5.1 What Gets Persisted
-
-| Memory Key Pattern | Content | Written By | Read By |
-|-------------------|---------|------------|---------|
-| `style:{category}:{id}` | Style insight from edit diffs | Style Learner | Writer, Designer |
-| `talk:{talkId}:meta` | Topic, date, audience, format, eval scores | Pipeline | Coach, Researcher |
-| `talk:{talkId}:script` | Final approved script | Pipeline | Coach (RAG) |
-| `talk:{talkId}:edits` | Edit count per gate, diff summaries | Pipeline | Evals |
-| `preferences:slide-theme` | Preferred theme, palette, fonts | Style Learner | Designer |
-| `preferences:timing` | Pacing tendencies (e.g. "runs 5min over") | Style Learner | Writer, Coach |
-| `eval:{talkId}:scores` | Full eval scorecard | Eval suite | Dashboard |
-
-### 5.2 Style Learning Loop
+### Project Structure
 
 ```
-1. Writer generates script using base prompt + memory-retrieved style preferences
-2. Human edits script at gate
-3. Diff computed between generated and edited versions
-4. Style Learner agent analyses diff → produces StyleInsight[]
-5. Insights persisted to memory with category tags
-6. Next run: Writer's prompt is augmented with top-k relevant style insights
-7. Eval tracks whether edit count decreases over time
+src/
+├── mastra/
+│   ├── index.ts
+│   ├── agents/
+│   │   ├── researcher.ts
+│   │   ├── writer.ts
+│   │   └── __tests__/
+│   │       ├── researcher.test.ts
+│   │       └── writer.test.ts
+│   ├── workflows/
+│   │   ├── talkforge.ts
+│   │   ├── gates/
+│   │   │   └── review-gate.ts
+│   │   └── __tests__/
+│   │       └── talkforge.test.ts
+│   ├── tools/
+│   │   ├── web-search.ts
+│   │   ├── word-count-to-time.ts
+│   │   └── __tests__/
+│   ├── schemas/
+│   │   └── gate-payloads.ts
+│   └── config/
+│       └── models.ts
+├── docker-compose.yml
+├── .env.example
+└── .env
 ```
 
-### 5.3 Dynamic Prompt Augmentation
+- Tests co-located in `__tests__/` directories
+- Agent system prompts inline (separate file if >50 lines)
+- Zod output schemas co-located with agent that produces them
+- Shared schemas in `src/mastra/schemas/`
+- Tools grouped by function, not by agent
 
-At runtime, the Writer agent's system prompt is constructed dynamically:
+### Agent Output Schema Conventions
+
+- Schema exported from same file as agent
+- Named `{AgentName}OutputSchema`
+- Flat where possible, nested only for logical grouping
+- All arrays typed with item schema
+- Optional fields explicit with `.optional()` and `.describe()`
+- `.describe()` on all non-obvious fields
+- `z.enum()` over `z.string()` for known value sets
+
+### Human Gate Payload Structure
+
+All gates use shared schemas from `src/mastra/schemas/gate-payloads.ts`:
+
+**Suspend payload:**
+- `agentId` — which agent produced the output
+- `gateId` — gate identifier (e.g., `review-research`)
+- `output` — agent's full structured output
+- `summary` — human-readable summary for quick review
+
+**Resume data:**
+- `approved` — boolean
+- `feedback` — optional freetext guidance for next step
+- `edits` — optional modified output (diff captured at Gate 3 for style learning)
+
+Gate 4 (slides) auto-resumes with `{ approved: true }` when user opts out of review.
+
+### Tool Implementation Standard
+
+Every tool must:
+- Define explicit `inputSchema` and `outputSchema`
+- Have single responsibility
+- Write `description` as LLM-facing explanation
+- Throw on unrecoverable errors; return partial result with warning for recoverable
+- Be testable in isolation with mocked external APIs
+
+### Phase Recipes
+
+**Adding an Agent:** Create file → define output schema → define agent → export both → register in index.ts → add test → verify in Studio
+
+**Adding a Tool:** Create file → follow standard template → export → bind to agent(s) → add test → verify in Studio
+
+**Adding a Workflow Step:** Add to workflow file → use shared gate schemas if gate → use `.map()` for schema transforms → test full path
+
+**Adding an Eval:** Create scorer file → register in Mastra config → verify in Studio Scorers tab
+
+### Enforcement
+
+- All AI agents implementing stories MUST check these patterns before writing code
+- Naming violations caught by code review and linting
+- Schema conventions enforced by TypeScript compiler (Zod inference)
+- New components follow phase recipes to ensure consistency
+
+## Project Structure & Boundaries
+
+### Complete Project Directory Structure
 
 ```
-Base system prompt (static)
-+
-"LEARNED STYLE PREFERENCES:"
-+ memory.query({ tags: ["style"], limit: 15 })
-+
-"PREVIOUS TALKS BY THIS SPEAKER:"
-+ memory.query({ prefix: "talk:", fields: ["topic", "date"] })
-+
-"KNOWN PACING TENDENCIES:"
-+ memory.query({ key: "preferences:timing" })
+talkforge/
+├── package.json
+├── tsconfig.json
+├── vitest.config.ts
+├── docker-compose.yml
+├── .env
+├── .env.example
+├── .gitignore
+│
+└── src/
+    └── mastra/
+        ├── index.ts                          # Mastra entry point — registers all agents, workflows
+        │
+        ├── agents/
+        │   ├── researcher.ts                 # Phase 1 — Agent + ResearcherOutputSchema
+        │   ├── writer.ts                     # Phase 1 — Agent + WriterOutputSchema
+        │   ├── talk-architect.ts             # Phase 2 — Agent + ArchitectOutputSchema
+        │   ├── designer.ts                   # Phase 5 — Agent + DesignerOutputSchema
+        │   ├── coach.ts                      # Phase 7 — Agent + CoachOutputSchema
+        │   └── __tests__/
+        │       ├── researcher.test.ts
+        │       ├── writer.test.ts
+        │       ├── talk-architect.test.ts
+        │       ├── designer.test.ts
+        │       └── coach.test.ts
+        │
+        ├── workflows/
+        │   ├── talkforge.ts                  # Main pipeline workflow (grows per phase)
+        │   ├── gates/
+        │   │   └── review-gate.ts            # Shared suspend/resume gate step logic
+        │   ├── steps/
+        │   │   └── style-learner.ts          # Phase 6 — Workflow step (not an agent)
+        │   └── __tests__/
+        │       └── talkforge.test.ts
+        │
+        ├── tools/
+        │   ├── web-search.ts                 # Phase 1 — Mastra web search wrapper
+        │   ├── fetch-page.ts                 # Phase 1 — URL content extraction
+        │   ├── word-count-to-time.ts         # Phase 1 — WPM calculator
+        │   ├── check-jargon.ts               # Phase 1 — Audience-level jargon checker
+        │   ├── find-existing-talks.ts        # Phase 1 — YouTube/conference search
+        │   ├── extract-stats.ts              # Phase 1 — Structured data extraction
+        │   ├── estimate-timing.ts            # Phase 2 — Section timing estimator
+        │   ├── generate-mermaid.ts           # Phase 5 — NL to Mermaid syntax
+        │   ├── suggest-layout.ts             # Phase 5 — Slide layout mapper
+        │   ├── generate-colour-palette.ts    # Phase 5 — Colour palette from topic
+        │   ├── build-slides.ts              # Phase 5 — DeckSpec to slides
+        │   ├── render-mermaid.ts            # Phase 5 — Mermaid to SVG
+        │   ├── query-past-talks.ts          # Phase 7 — RAG vector search
+        │   └── __tests__/
+        │       ├── web-search.test.ts
+        │       ├── word-count-to-time.test.ts
+        │       └── ...
+        │
+        ├── schemas/
+        │   ├── gate-payloads.ts              # Shared GateSuspendSchema, GateResumeSchema
+        │   ├── workflow-input.ts             # TalkForge pipeline input schema
+        │   └── workflow-output.ts            # TalkForge pipeline final output schema
+        │
+        ├── config/
+        │   └── models.ts                     # Model tier mapping per agent
+        │
+        ├── scorers/                          # Phase 4
+        │   ├── hook-strength.ts              # LLM-as-judge
+        │   ├── pacing-distribution.ts        # Heuristic
+        │   ├── jargon-density.ts             # LLM-as-judge
+        │   ├── narrative-coherence.ts        # LLM-as-judge
+        │   └── __tests__/
+        │
+        └── rag/                              # Phase 3
+            ├── best-practices.ts             # Ruleset KB setup
+            ├── session-history.ts            # Past talks KB setup
+            ├── user-references.ts            # Per-session reference KB setup
+            └── __tests__/
 ```
 
-The Designer agent similarly retrieves slide aesthetic preferences.
+### Phase-to-File Mapping
 
----
+| Phase | New Files Added |
+|-------|----------------|
+| **1: Core Pipeline** | `agents/{researcher,writer}.ts`, `tools/{web-search,fetch-page,word-count-to-time,check-jargon,find-existing-talks,extract-stats}.ts`, `workflows/talkforge.ts`, `workflows/gates/review-gate.ts`, `schemas/*`, `config/models.ts`, `docker-compose.yml`, `.env.example` |
+| **2: Workflow Complexity** | `agents/talk-architect.ts`, `tools/estimate-timing.ts` + branching/loopback logic in `talkforge.ts` |
+| **3: RAG** | `rag/{best-practices,user-references}.ts` + `@mastra/rag` dependency |
+| **4: Evals** | `scorers/{hook-strength,pacing-distribution,jargon-density,narrative-coherence}.ts` |
+| **5: Design** | `agents/designer.ts`, `tools/{generate-mermaid,suggest-layout,generate-colour-palette,build-slides,render-mermaid}.ts` + parallel branch in `talkforge.ts` |
+| **6: Memory** | `workflows/steps/style-learner.ts` + memory config in `index.ts` + prompt augmentation in `agents/writer.ts` |
+| **7: Coach** | `agents/coach.ts`, `tools/query-past-talks.ts`, `rag/session-history.ts` |
 
-## 6. Eval Suite
+### Architectural Boundaries
 
-### 6.1 Per-Stage Evals (Automated, run at Step 11)
+**Agent Boundary:**
+Each agent is self-contained in its file — system prompt, tool bindings, model selection, and output schema. Agents do not import other agents. They communicate only through the workflow (output of one feeds input of the next via `.map()` transforms).
 
-| Eval Name | Stage | Method | What It Measures |
-|-----------|-------|--------|------------------|
-| `research-breadth` | Research | LLM-as-judge | Diversity of sources and perspectives (1-5) |
-| `research-recency` | Research | Heuristic | Average age of sources in days |
-| `hook-strength` | Script | LLM-as-judge | "Would a bored attendee put their phone down?" (1-5) |
-| `pacing-distribution` | Script | Heuristic | Variance in section duration vs. targets |
-| `jargon-density` | Script | LLM-as-judge | Unexplained technical terms for audience level (1-5) |
-| `narrative-coherence` | Script | LLM-as-judge | Clear throughline, ending connects to opening (1-5) |
-| `slide-word-count` | Slides | Heuristic | Number of slides exceeding 20 words (lower is better) |
-| `slide-variety` | Slides | Heuristic | Distribution of slide layout types (penalise monotony) |
-| `diagram-clarity` | Slides | LLM-as-judge | Are Mermaid diagrams readable and useful? (1-5) |
-| `qa-coverage` | Coaching | LLM-as-judge | Do anticipated Q&As cover likely audience concerns? (1-5) |
+**Workflow Boundary:**
+`talkforge.ts` is the orchestration layer. It composes agents into steps, manages data flow between them, and defines gate placement. It imports agents and gate logic but contains no business logic itself.
 
-### 6.2 Meta-Evals (Memory & Learning Quality)
+**Tool Boundary:**
+Tools are pure functions of input → output. They import no agents, no workflow state, no other tools. They are bound to agents in the agent definition file, not in the tool file.
 
-| Eval Name | Method | What It Measures |
-|-----------|--------|------------------|
-| `style-convergence` | Trend analysis | Are human edit counts decreasing across sessions? |
-| `memory-relevance` | LLM-as-judge | Were retrieved memories actually reflected in the output? |
-| `memory-consistency` | LLM-as-judge | Do stored style preferences contradict each other? |
-| `memory-staleness` | Heuristic | Are any stored preferences older than N sessions without reconfirmation? |
+**Storage Boundary:**
+All Postgres interaction happens through Mastra's storage abstraction (`PostgresStore`). No direct SQL queries in agent or tool code. Storage is configured once in `src/mastra/index.ts`.
 
-### 6.3 Eval Output
+**Schema Boundary:**
+- Agent-specific schemas: exported from the agent file
+- Shared schemas (gate payloads, workflow I/O): in `src/mastra/schemas/`
+- No circular schema imports — data flows one direction through the pipeline
 
-```typescript
-interface EvalScorecard {
-  talkId: string;
-  timestamp: string;
-  stageScores: Record<string, { score: number; max: 5; details: string }>;
-  metaScores: Record<string, { score: number; max: 5; details: string }>;
-  overallScore: number;
-  trendVsPrevious: "improving" | "stable" | "declining";
-  recommendations: string[];
-}
+### Data Flow
+
 ```
+User Input (topic, audience, format)
+    │
+    ▼
+┌─────────────┐     ┌──────────────────┐
+│ Researcher  │────▶│ Gate 1: Research  │──── user feedback ───┐
+│   Agent     │     │   (suspend)      │                      │
+└─────────────┘     └──────────────────┘                      ▼
+                                                    ┌─────────────────┐
+                                                    │  Architect      │ (Phase 2)
+                                                    │    Agent        │
+                                                    └────────┬────────┘
+                                                             ▼
+                                                    ┌──────────────────┐
+                                                    │ Gate 2: Structure│ (Phase 2)
+                                                    │   (suspend)      │
+                                                    └────────┬────────┘
+                                                             ▼
+┌─────────────┐     ┌──────────────────┐
+│   Writer    │────▶│ Gate 3: Script   │──── diff → Style Learner (Phase 6)
+│   Agent     │     │   (suspend)      │
+└─────────────┘     └──────────────────┘
+                            │
+                            ▼
+                    ┌─────────────────┐
+                    │    Designer     │ (Phase 5)
+                    │     Agent       │
+                    └────────┬────────┘
+                             ▼
+                    ┌──────────────────┐
+              ┌─────│ Parallel Assets  │─────┐ (Phase 5)
+              │     └──────────────────┘     │
+              ▼              ▼               ▼
+        [Slides]      [Mermaid SVG]    [Images]
+              │              │               │
+              └──────────┬───┘───────────────┘
+                         ▼
+                    ┌──────────────────┐
+                    │ Gate 4: Slides   │ (Phase 5, optional)
+                    │   (suspend)      │
+                    └────────┬────────┘
+                             ▼
+                    ┌─────────────────┐
+                    │     Coach       │ (Phase 7)
+                    │     Agent       │
+                    └────────┬────────┘
+                             ▼
+                    ┌──────────────────┐
+                    │   Eval Suite    │ (Phase 4)
+                    └────────┬────────┘
+                             ▼
+                    Final Output Package
+```
+
+### Integration Points
+
+**Internal Communication:**
+- Agent → Workflow: via `createStep(agent, { structuredOutput })` — Mastra handles invocation
+- Step → Step: via `.then()` chain with `.map()` for schema transforms
+- Gate → User: via `suspend()` payload → Studio UI → `resume()` with feedback
+- Workflow → Storage: automatic via `PostgresStore` (snapshots, traces, evals)
+
+**External Integrations:**
+- Anthropic API: LLM calls for all agents and eval judges (via Mastra model router)
+- Web search API: via Mastra's built-in web search integration (Researcher tool)
+- Mermaid CLI: `@mermaid-js/mermaid-cli` for SVG rendering (Phase 5)
+
+**Development Workflow:**
+- `pnpm dev` → `mastra dev` → Studio UI on `localhost:4111`
+- `pnpm test` → `vitest` → runs all `__tests__/` co-located tests
+- `pnpm build` → `mastra build` → production output in `.mastra/output/`
+- Docker Compose manages Postgres lifecycle independently
+
+## Architecture Validation Results
+
+### Coherence Validation ✅
+
+**Decision Compatibility:**
+All technology choices are compatible and conflict-free: PostgreSQL + pgvector via `@mastra/pg`, Mastra 1.3.1 + Node.js >= 22.13.0 + TypeScript ES2022, Anthropic Claude models (Opus 4.6, Sonnet 4.5, Haiku 4.5) via Mastra model router, Zod v4 for structured output, Vitest for testing, pnpm as package manager. `createStep(agent, { structuredOutput })` + `suspend()`/`resume()` are confirmed Mastra APIs. No contradictory decisions found.
+
+**Pattern Consistency:**
+Naming conventions (kebab-case IDs, camelCase exports, PascalCase schemas) apply uniformly across agents, tools, workflows. Gate payload structure standardised via shared schemas. Tool standard template consistent with Mastra's `createTool()` API. Phase recipes provide uniform process for all component types.
+
+**Structure Alignment:**
+Project structure enforces all five architectural boundaries (Agent, Workflow, Tool, Storage, Schema). No circular dependency paths — data flows one direction through the pipeline. Phase-to-file mapping ensures incremental growth without restructuring. `index.ts` as single registration point supports extensibility NFRs.
+
+### Requirements Coverage Validation ✅
+
+**Functional Requirements:** 27/27 covered.
+
+All FRs have direct architectural support:
+- Input (FR-1–6): Workflow input schema + Zod validation
+- Pipeline (FR-7–12): Workflow patterns (`.then()`, `.parallel()`, `.branch()`, `.dountil()`, `suspend()`/`resume()`)
+- Output (FR-13–17): Agent output schemas + tools per phase
+- Memory (FR-18–22): Style Learner step + Mastra memory + prompt augmentation
+- Evals (FR-24–27): Scorers directory + eval registry + Postgres eval tables
+
+**Minor gap:** FR-17 (ZIP download) — no explicit packaging tool in structure. Straightforward addition in Phase 7.
+
+**Non-Functional Requirements:** 24/24 addressed.
+
+All NFRs have architectural support. Minor gaps in later phases:
+- NFR-11: Eval query interface — Studio provides basic querying; custom tool if needed (Phase 4)
+- NFR-19: View/delete personal data — interface deferred to Phase 6 story planning
+- NFR-20: Data export as JSON — tool deferred to Phase 7
+- NFR-23: Independent eval command — `pnpm eval` script added in Phase 4
+
+### Implementation Readiness Validation ✅
+
+**Decision Completeness:** All 7 critical decisions documented with technology versions. Implementation patterns cover 6 categories. Model tier mapping explicit per agent. Error handling covers all failure modes. Deferred decisions properly scoped to their phases.
+
+**Structure Completeness:** Full directory tree with phase annotations. Phase-to-file mapping enables incremental delivery. All integration points specified. Component boundaries defined with clear import rules.
+
+**Pattern Completeness:** Naming conventions, schema conventions, gate payload structure, tool template, and phase recipes all documented with examples.
+
+### Gap Analysis Results
+
+**Critical Gaps:** None. All decisions needed to begin Phase 1 are resolved.
+
+**Important Gaps (deferred, non-blocking):**
+
+| # | Gap | Phase | Resolution |
+|---|-----|-------|------------|
+| 1 | FR-17: No packaging tool for ZIP output | 7 | Add `package-outputs` tool |
+| 2 | NFR-19: No interface for view/delete personal data | 6 | Defer to story planning — Studio or CLI commands |
+| 3 | NFR-20: No tool for JSON data export | 7 | Add `export-data` tool |
+| 4 | NFR-23: No explicit `pnpm eval` script | 4 | Add as npm script in Phase 4 setup |
+
+**Nice-to-Have:** Docker Compose specifics, `.env.example` template, eval query interface — all standard patterns defined during implementation.
+
+### Architecture Completeness Checklist
+
+**✅ Requirements Analysis**
+- [x] Project context thoroughly analysed
+- [x] Scale and complexity assessed
+- [x] Technical constraints identified
+- [x] Cross-cutting concerns mapped
+
+**✅ Architectural Decisions**
+- [x] Critical decisions documented with versions
+- [x] Technology stack fully specified
+- [x] Integration patterns defined
+- [x] Performance considerations addressed
+
+**✅ Implementation Patterns**
+- [x] Naming conventions established
+- [x] Structure patterns defined
+- [x] Communication patterns specified (gate payloads, data flow)
+- [x] Process patterns documented (error handling, phase recipes)
+
+**✅ Project Structure**
+- [x] Complete directory structure defined
+- [x] Component boundaries established
+- [x] Integration points mapped
+- [x] Requirements-to-structure mapping complete
+
+### Architecture Readiness Assessment
+
+**Overall Status:** READY FOR IMPLEMENTATION
+
+**Confidence Level:** High — all Phase 1 decisions are resolved, patterns are comprehensive, and gaps are isolated to later phases.
+
+**Key Strengths:**
+- Clean boundary definitions prevent AI agent implementation conflicts
+- Phase-to-file mapping enables incremental delivery without restructuring
+- Shared gate payload schemas eliminate human gate inconsistency
+- Registry-based extensibility built into the architecture from Phase 1
+- Tiered model selection balances quality and cost
+
+**Areas for Future Enhancement:**
+- ZIP packaging tool and data export tool (Phase 7)
+- Data view/delete interface (Phase 6)
+- Independent eval script (Phase 4)
+- Captured as known gaps for story planning
+
+### Implementation Handoff
+
+**AI Agent Guidelines:**
+- Follow all architectural decisions exactly as documented
+- Use implementation patterns consistently across all components
+- Respect project structure and boundaries
+- Refer to this document for all architectural questions
+
+**First Implementation Priority:**
+1. Docker Compose + Postgres setup
+2. `pnpm init` + dependency installation (`@mastra/core`, `zod`, `mastra`, `vitest`)
+3. `tsconfig.json` with ES2022 target + bundler module resolution
+4. `src/mastra/index.ts` Mastra entry point with PostgresStore
+5. First agent (Researcher) + first tool (`web-search`) + Studio verification
