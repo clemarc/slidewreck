@@ -1,8 +1,7 @@
 {
   "name": "bmad-mastra-presentation",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Mastra agents to build presentations using BMAD and Claude Code",
   "scripts": {
     "dev": "mastra dev",
     "build": "mastra build",
