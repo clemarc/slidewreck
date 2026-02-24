@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "mastra dev",
     "build": "mastra build",
-    "test": "vitest"
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",

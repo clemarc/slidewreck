@@ -66,6 +66,8 @@ Agent roles map to model tiers in `src/mastra/config/models.ts`:
 
 ## Git & PR Workflow
 
+### Story completions (`dev-story`)
+
 When the `dev-story` workflow completes and a story moves to **review** status:
 
 1. **Create a feature branch** from main named `story/<story-key>` (e.g., `story/1-1-project-scaffolding-infrastructure-setup`)
@@ -74,5 +76,15 @@ When the `dev-story` workflow completes and a story moves to **review** status:
    - Title: `Story <X.Y>: <story title>`
    - Body: the full content of the story implementation artifact markdown file (`_bmad-output/implementation-artifacts/<story-key>.md`)
 4. The PR becomes the review surface for the Code Review step (`/bmad-bmm-code-review`)
+
+### Quick-dev completions (`quick-dev`)
+
+When the `quick-dev` workflow completes (step 6 resolve-findings done):
+
+1. **Create a feature branch** from main named `quick/<slug>` (e.g., `quick/github-actions-ci-pipeline`)
+2. **Stage and commit** all implementation files with a message referencing the tech-spec title
+3. **Create a GitHub PR** using `gh pr create`:
+   - Title: the tech-spec title
+   - Body: the full content of the tech-spec file (`_bmad-output/implementation-artifacts/tech-spec-<slug>.md`)
 
 @AGENTS.md
