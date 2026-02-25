@@ -14,7 +14,9 @@ persona:
   principles: []
 
 # Add custom critical actions (appended after standard config loading)
-critical_actions: []
+critical_actions: [
+    - "After a quick-dev workflow completes, ALWAYS follow the CLAUDE.md 'Git & PR Workflow → Story completions' instructions: create a quick dev branch (dev/<spec-key>), commit all implementation files, and create a GitHub PR using gh pr create. Do NOT stop without doing this."
+]
 
 # Add persistent memories for the agent
 memories: []

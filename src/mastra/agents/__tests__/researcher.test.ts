@@ -99,11 +99,11 @@ describe('Researcher agent', () => {
     expect(researcher.model).toBe(SONNET_MODEL);
   });
 
-  it('should have webSearch and fetchPage tools bound', async () => {
+  it('should have webSearch and webFetch tools bound', async () => {
     const tools = await researcher.listTools();
     const toolKeys = Object.keys(tools);
     expect(toolKeys).toContain('webSearch');
-    expect(toolKeys).toContain('fetchPage');
+    expect(toolKeys).toContain('webFetch');
   });
 
   it('should have a name', () => {

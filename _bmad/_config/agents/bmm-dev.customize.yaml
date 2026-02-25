@@ -14,7 +14,8 @@ persona:
   principles: []
 
 # Add custom critical actions (appended after standard config loading)
-critical_actions: []
+critical_actions:
+  - "After a dev-story workflow moves a story to 'review' status, ALWAYS follow the CLAUDE.md 'Git & PR Workflow → Story completions' instructions: create a feature branch (story/<story-key>), commit all implementation files, and create a GitHub PR using gh pr create. Do NOT stop at step 10 completion communication without doing this."
 
 # Add persistent memories for the agent
 memories: []
