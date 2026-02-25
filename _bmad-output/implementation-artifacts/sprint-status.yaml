@@ -21,6 +21,7 @@
 #   - in-progress: Developer actively working on implementation
 #   - review: Ready for code review (via Dev's code-review workflow)
 #   - done: Story completed
+#   - removed: Story eliminated by architectural decision (no longer needed)
 #
 # Retrospective Status:
 #   - optional: Can be completed but not required
@@ -44,7 +45,7 @@ development_status:
   epic-1: in-progress
   1-1-project-scaffolding-infrastructure-setup: done
   1-2-researcher-agent-core-web-tools: done
-  1-3-supplementary-research-tools: backlog
+  1-3-supplementary-research-tools: removed # AD-5: handled natively by Anthropic built-in tools — validate on first e2e agent run
   1-4-writer-agent-writing-tools: backlog
   1-5-pipeline-input-schema-validation: backlog
   1-6-end-to-end-pipeline-workflow-with-human-gates: backlog

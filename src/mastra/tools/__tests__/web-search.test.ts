@@ -1,51 +1,62 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { webSearch, webFetch } from '../web-search';
 
-describe('createWebSearchTool', () => {
-  const originalEnv = process.env.WEB_SEARCH_PROVIDER;
+// Provider-defined tools expose `id` and `args` at runtime but not in TS type declarations.
+// Cast to access these runtime properties for config verification.
+const webSearchAny = webSearch as Record<string, unknown>;
+const webFetchAny = webFetch as Record<string, unknown>;
 
-  afterEach(() => {
-    if (originalEnv === undefined) {
-      delete process.env.WEB_SEARCH_PROVIDER;
-    } else {
-      process.env.WEB_SEARCH_PROVIDER = originalEnv;
-    }
-    vi.resetModules();
+describe('Anthropic provider-defined tools', () => {
+  describe('webSearch', () => {
+    it('should be a provider-defined tool', () => {
+      expect(webSearch).toBeDefined();
+      expect(webSearch.type).toBe('provider');
+    });
+
+    it('should have the correct tool identifier', () => {
+      expect(webSearchAny.id).toBe('anthropic.web_search_20250305');
+    });
+
+    it('should be configured with maxUses limit', () => {
+      expect(webSearchAny.args).toEqual({ maxUses: 5 });
+    });
   });
 
-  it('should default to anthropic provider and return a provider-defined tool', async () => {
-    const { createWebSearchTool } = await import('../web-search');
-    const tool = await createWebSearchTool();
-    expect(tool).toBeDefined();
-    expect(typeof tool).toBe('object');
-    expect(tool).toHaveProperty('type');
+  describe('webFetch', () => {
+    it('should be a provider-defined tool', () => {
+      expect(webFetch).toBeDefined();
+      expect(webFetch.type).toBe('provider');
+    });
+
+    it('should have the correct tool identifier', () => {
+      expect(webFetchAny.id).toBe('anthropic.web_fetch_20250910');
+    });
+
+    it('should be configured with maxUses, maxContentTokens, and citations', () => {
+      expect(webFetchAny.args).toEqual({
+        maxUses: 15,
+        maxContentTokens: 20000,
+        citations: { enabled: true },
+      });
+    });
   });
 
-  it('should return a tool for anthropic provider explicitly', async () => {
-    const { createWebSearchTool } = await import('../web-search');
-    const tool = await createWebSearchTool('anthropic');
-    expect(tool).toBeDefined();
-    expect(tool).toHaveProperty('type');
-  });
+  // Provider-defined tools are opaque — execution is server-side, not client-side.
+  // These tests verify the SDK interface contract so breaking changes from
+  // @ai-sdk/anthropic upgrades are caught.
+  describe('interface contract', () => {
+    it('webSearch should expose expected tool interface keys', () => {
+      expect(webSearch).toHaveProperty('inputSchema');
+      expect(webSearchAny).toHaveProperty('id');
+      expect(webSearch).toHaveProperty('type');
+      expect(webSearchAny).toHaveProperty('args');
+    });
 
-  it('should throw for unsupported provider', async () => {
-    const { createWebSearchTool } = await import('../web-search');
-    await expect(
-      createWebSearchTool('unsupported' as any),
-    ).rejects.toThrow('Unsupported web search provider: unsupported');
-  });
-
-  it('should export webSearch as a resolved provider-defined tool', async () => {
-    delete process.env.WEB_SEARCH_PROVIDER;
-    const { webSearch } = await import('../web-search');
-    expect(webSearch).toBeDefined();
-    expect(typeof webSearch).toBe('object');
-    expect(webSearch).toHaveProperty('type');
-  });
-
-  it('should export createWebSearchTool as an async function', async () => {
-    const { createWebSearchTool } = await import('../web-search');
-    expect(typeof createWebSearchTool).toBe('function');
-    const result = createWebSearchTool();
-    expect(result).toBeInstanceOf(Promise);
+    it('webFetch should expose expected tool interface keys', () => {
+      expect(webFetch).toHaveProperty('inputSchema');
+      expect(webFetchAny).toHaveProperty('id');
+      expect(webFetch).toHaveProperty('type');
+      expect(webFetchAny).toHaveProperty('args');
+    });
   });
 });

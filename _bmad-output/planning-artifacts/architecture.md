@@ -82,7 +82,7 @@ The prior `architecture.md` contains useful ideas (agent roles, pipeline structu
 ### Technical Constraints & Dependencies
 
 - **Mastra framework** as the orchestration layer — all agents, tools, workflows, RAG, memory, and evals built on Mastra APIs
-- **Anthropic Claude** as the primary LLM provider for all agents
+- **Anthropic Claude** as the exclusive LLM provider for all agents (AD-5) — enables use of Anthropic's built-in provider-defined tools (web search, web fetch with dynamic filtering, programmatic tool calling)
 - **Storage provider** — PostgreSQL + pgvector from Phase 1 via Docker Compose (AD-1 resolved)
 - **Node.js >= 22.13.0** required by Mastra
 - **TypeScript with ES2022 modules** — Mastra requirement (no CommonJS)
@@ -107,6 +107,7 @@ All pending decisions from context analysis have been resolved in Core Architect
 - **AD-2: Agent vs. Workflow Step** — Resolved: 5 Agents + 1 workflow step (Style Learner)
 - **AD-3: Human Gate Placement** — Resolved: 4 gates, Gate 4 optional (auto-approve by default)
 - **AD-4: Pre-existing Architecture** — Confirmed: treated as proposals, not specs
+- **AD-5: LLM Provider Strategy** — Resolved: Anthropic-only with built-in provider-defined tools (web search, web fetch with dynamic filtering, programmatic tool calling)
 
 ## Starter Template Evaluation
 
@@ -207,6 +208,7 @@ src/
 - Storage provider (AD-1): PostgreSQL + pgvector from Phase 1
 - Agent vs. step split (AD-2): 5 Agents + 1 workflow step
 - Human gate placement (AD-3): 4 gates, Gate 4 optional
+- LLM provider strategy (AD-5): Anthropic-only with built-in provider-defined tools
 - LLM model selection: Tiered by role complexity
 - Workflow composition pattern: Mastra's `.then()` / `.parallel()` / `.branch()` / `.dountil()`
 
@@ -253,6 +255,33 @@ Tiered by role complexity to balance quality, speed, and cost:
 | Style Learner (step) | `anthropic/claude-haiku-4-5` | Narrow diff analysis, structured output |
 | Eval judges | `anthropic/claude-haiku-4-5` | Cost-efficient for repetitive scoring |
 
+### LLM Provider Strategy (AD-5 Resolution)
+
+**Decision:** Anthropic as the exclusive LLM provider, leveraging built-in provider-defined tools.
+
+**Rationale:**
+- Anthropic's built-in `web_search` and `web_fetch` (with dynamic filtering) eliminate the need for custom fetch-page tools — Claude reads pages and programmatically extracts only relevant content before it enters the context window
+- Programmatic tool calling enables Claude to batch search→fetch→extract cycles in a single orchestration script, reducing API round-trips and latency for research-heavy workflows
+- Multi-provider abstractions add complexity without value — the model tiers are already 100% Anthropic
+- Dynamic filtering keeps context budgets under control when compiling research across many sources
+
+**Tradeoff:** Full vendor lock-in to Anthropic. Acceptable for this project's scope and learning goals.
+
+**Impact on Researcher Agent:**
+- Custom `fetchPage` tool removed — replaced by Anthropic's built-in `web_fetch` with dynamic filtering
+- Custom `findExistingTalks` and `extractStats` tools removed — the search→fetch→filter pipeline handles these use cases natively via agent reasoning
+- Multi-provider web search factory simplified to Anthropic-only provider-defined tool
+- Story 1.3 (Supplementary Research Tools) scope eliminated — agent handles existing talk discovery and stat extraction natively through built-in tool orchestration
+
+**Provider-Defined Tools:**
+| Tool | Capability | Replaces |
+|------|-----------|----------|
+| `web_search` | Server-side web search with structured results | Custom `webSearch` factory |
+| `web_fetch` | URL content retrieval with dynamic code-based filtering | Custom `fetchPage` tool |
+
+**Model Capability Leveraged:**
+- **Multi-step tool orchestration** — Claude chains search→fetch→extract cycles autonomously, eliminating the need for dedicated `findExistingTalks` and `extractStats` tools
+
 ### Agent Architecture (AD-2 Resolution)
 
 **5 Agents + 1 Workflow Step:**
@@ -261,7 +290,7 @@ All agents composed into workflow via `createStep(agent, { structuredOutput: { s
 
 | Role | Type | Phase | Tools | Model Tier |
 |------|------|-------|-------|------------|
-| Researcher | Agent | 1 | webSearch, fetchPage, findExistingTalks, extractStats | Sonnet |
+| Researcher | Agent | 1 | webSearch (provider-defined), webFetch (provider-defined) | Sonnet |
 | Architect | Agent | 2 | estimateTiming | Sonnet |
 | Writer | Agent | 1 | wordCountToTime, checkJargon | Opus |
 | Designer | Agent | 5 | generateMermaid, suggestLayout, generateColourPalette | Sonnet |
@@ -482,12 +511,9 @@ talkforge/
         │       └── talkforge.test.ts
         │
         ├── tools/
-        │   ├── web-search.ts                 # Phase 1 — Mastra web search wrapper
-        │   ├── fetch-page.ts                 # Phase 1 — URL content extraction
+        │   ├── web-search.ts                 # Phase 1 — Anthropic provider-defined web search
         │   ├── word-count-to-time.ts         # Phase 1 — WPM calculator
         │   ├── check-jargon.ts               # Phase 1 — Audience-level jargon checker
-        │   ├── find-existing-talks.ts        # Phase 1 — YouTube/conference search
-        │   ├── extract-stats.ts              # Phase 1 — Structured data extraction
         │   ├── estimate-timing.ts            # Phase 2 — Section timing estimator
         │   ├── generate-mermaid.ts           # Phase 5 — NL to Mermaid syntax
         │   ├── suggest-layout.ts             # Phase 5 — Slide layout mapper
@@ -526,7 +552,7 @@ talkforge/
 
 | Phase | New Files Added |
 |-------|----------------|
-| **1: Core Pipeline** | `agents/{researcher,writer}.ts`, `tools/{web-search,fetch-page,word-count-to-time,check-jargon,find-existing-talks,extract-stats}.ts`, `workflows/talkforge.ts`, `workflows/gates/review-gate.ts`, `schemas/*`, `config/models.ts`, `docker-compose.yml`, `.env.example` |
+| **1: Core Pipeline** | `agents/{researcher,writer}.ts`, `tools/{web-search,word-count-to-time,check-jargon}.ts`, `workflows/talkforge.ts`, `workflows/gates/review-gate.ts`, `schemas/*`, `config/models.ts`, `docker-compose.yml`, `.env.example` |
 | **2: Workflow Complexity** | `agents/talk-architect.ts`, `tools/estimate-timing.ts` + branching/loopback logic in `talkforge.ts` |
 | **3: RAG** | `rag/{best-practices,user-references}.ts` + `@mastra/rag` dependency |
 | **4: Evals** | `scorers/{hook-strength,pacing-distribution,jargon-density,narrative-coherence}.ts` |
@@ -618,8 +644,7 @@ User Input (topic, audience, format)
 - Workflow → Storage: automatic via `PostgresStore` (snapshots, traces, evals)
 
 **External Integrations:**
-- Anthropic API: LLM calls for all agents and eval judges (via Mastra model router)
-- Web search API: via Mastra's built-in web search integration (Researcher tool)
+- Anthropic API: LLM calls for all agents and eval judges (via Mastra model router), plus provider-defined tools — web search, web fetch with dynamic filtering, and programmatic tool calling (AD-5)
 - Mermaid CLI: `@mermaid-js/mermaid-cli` for SVG rendering (Phase 5)
 
 **Development Workflow:**
