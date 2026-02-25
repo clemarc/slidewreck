@@ -1,0 +1,108 @@
+import { describe, it, expect } from 'vitest';
+import { WorkflowInputSchema, FORMAT_DURATION_RANGES } from '../workflow-input';
+
+describe('WorkflowInputSchema', () => {
+  it('should accept valid input with all required fields', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Building Resilient Microservices',
+      audienceLevel: 'intermediate',
+      format: 'standard',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept all valid audienceLevel values', () => {
+    for (const level of ['beginner', 'intermediate', 'advanced', 'mixed'] as const) {
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Test topic',
+        audienceLevel: level,
+        format: 'lightning',
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('should accept all valid format values', () => {
+    for (const format of ['lightning', 'standard', 'keynote'] as const) {
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Test topic',
+        audienceLevel: 'beginner',
+        format,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('should reject missing topic', () => {
+    const result = WorkflowInputSchema.safeParse({
+      audienceLevel: 'beginner',
+      format: 'lightning',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject empty topic string', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: '',
+      audienceLevel: 'beginner',
+      format: 'lightning',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid audienceLevel', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'expert',
+      format: 'standard',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid format', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+      format: 'workshop',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject missing audienceLevel', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      format: 'standard',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject missing format', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('FORMAT_DURATION_RANGES', () => {
+  it('should have entries for all three formats', () => {
+    expect(FORMAT_DURATION_RANGES).toHaveProperty('lightning');
+    expect(FORMAT_DURATION_RANGES).toHaveProperty('standard');
+    expect(FORMAT_DURATION_RANGES).toHaveProperty('keynote');
+  });
+
+  it('should have minMinutes and maxMinutes for each format', () => {
+    for (const format of ['lightning', 'standard', 'keynote'] as const) {
+      expect(FORMAT_DURATION_RANGES[format]).toHaveProperty('minMinutes');
+      expect(FORMAT_DURATION_RANGES[format]).toHaveProperty('maxMinutes');
+      expect(FORMAT_DURATION_RANGES[format].minMinutes).toBeLessThan(FORMAT_DURATION_RANGES[format].maxMinutes);
+    }
+  });
+
+  it('should have correct duration ranges', () => {
+    expect(FORMAT_DURATION_RANGES.lightning).toEqual({ minMinutes: 5, maxMinutes: 10 });
+    expect(FORMAT_DURATION_RANGES.standard).toEqual({ minMinutes: 25, maxMinutes: 45 });
+    expect(FORMAT_DURATION_RANGES.keynote).toEqual({ minMinutes: 45, maxMinutes: 60 });
+  });
+});

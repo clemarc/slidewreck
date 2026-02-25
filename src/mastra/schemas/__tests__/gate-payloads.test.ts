@@ -1,0 +1,130 @@
+import { describe, it, expect } from 'vitest';
+import { GateSuspendSchema, GateResumeSchema } from '../gate-payloads';
+
+describe('GateSuspendSchema', () => {
+  it('should accept a valid suspend payload', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: { keyFindings: [], sources: [] },
+      summary: 'Research brief ready for review',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept output of any shape', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'script-writer',
+      gateId: 'review-script',
+      output: 'string output is also valid',
+      summary: 'Script ready for review',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject missing agentId', () => {
+    const result = GateSuspendSchema.safeParse({
+      gateId: 'review-research',
+      output: {},
+      summary: 'Test',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject missing gateId', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'researcher',
+      output: {},
+      summary: 'Test',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject missing summary', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: {},
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject empty agentId', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: '',
+      gateId: 'review-research',
+      output: {},
+      summary: 'Test',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject empty gateId', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'researcher',
+      gateId: '',
+      output: {},
+      summary: 'Test',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject empty summary', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: {},
+      summary: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept missing output (z.unknown() allows undefined)', () => {
+    const result = GateSuspendSchema.safeParse({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      summary: 'Test',
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('GateResumeSchema', () => {
+  it('should accept a valid resume payload with all fields', () => {
+    const result = GateResumeSchema.safeParse({
+      approved: true,
+      feedback: 'Focus more on resilience patterns',
+      edits: { modified: 'content' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept resume with only approved (feedback and edits optional)', () => {
+    const result = GateResumeSchema.safeParse({
+      approved: false,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept resume with approved and feedback only', () => {
+    const result = GateResumeSchema.safeParse({
+      approved: true,
+      feedback: 'Looks good, proceed',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject missing approved field', () => {
+    const result = GateResumeSchema.safeParse({
+      feedback: 'Some feedback',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject non-boolean approved', () => {
+    const result = GateResumeSchema.safeParse({
+      approved: 'yes',
+    });
+    expect(result.success).toBe(false);
+  });
+});
