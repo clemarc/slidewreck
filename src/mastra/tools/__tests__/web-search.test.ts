@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 describe('createWebSearchTool', () => {
   const originalEnv = process.env.WEB_SEARCH_PROVIDER;
@@ -12,35 +12,40 @@ describe('createWebSearchTool', () => {
     vi.resetModules();
   });
 
-  it('should default to anthropic provider', async () => {
+  it('should default to anthropic provider and return a provider-defined tool', async () => {
     const { createWebSearchTool } = await import('../web-search');
-    const tool = createWebSearchTool();
+    const tool = await createWebSearchTool();
     expect(tool).toBeDefined();
     expect(typeof tool).toBe('object');
+    expect(tool).toHaveProperty('type');
   });
 
   it('should return a tool for anthropic provider explicitly', async () => {
     const { createWebSearchTool } = await import('../web-search');
-    const tool = createWebSearchTool('anthropic');
+    const tool = await createWebSearchTool('anthropic');
     expect(tool).toBeDefined();
+    expect(tool).toHaveProperty('type');
   });
 
   it('should throw for unsupported provider', async () => {
     const { createWebSearchTool } = await import('../web-search');
-    expect(() => createWebSearchTool('unsupported' as any)).toThrow(
-      'Unsupported web search provider: unsupported',
-    );
+    await expect(
+      createWebSearchTool('unsupported' as any),
+    ).rejects.toThrow('Unsupported web search provider: unsupported');
   });
 
-  it('should export webSearch using WEB_SEARCH_PROVIDER env var default', async () => {
+  it('should export webSearch as a resolved provider-defined tool', async () => {
     delete process.env.WEB_SEARCH_PROVIDER;
     const { webSearch } = await import('../web-search');
     expect(webSearch).toBeDefined();
+    expect(typeof webSearch).toBe('object');
+    expect(webSearch).toHaveProperty('type');
   });
 
-  it('should export SearchProvider type values', async () => {
+  it('should export createWebSearchTool as an async function', async () => {
     const { createWebSearchTool } = await import('../web-search');
-    // Verify function exists and is callable
     expect(typeof createWebSearchTool).toBe('function');
+    const result = createWebSearchTool();
+    expect(result).toBeInstanceOf(Promise);
   });
 });

@@ -1,6 +1,9 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
+const FETCH_TIMEOUT_MS = 10_000;
+const MAX_CONTENT_LENGTH = 100_000;
+
 export const fetchPage = createTool({
   id: 'fetch-page',
   description: 'Fetch and extract text content from a URL',
@@ -15,7 +18,10 @@ export const fetchPage = createTool({
   }),
   execute: async (inputData) => {
     try {
-      const response = await fetch(inputData.url);
+      const response = await fetch(inputData.url, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
       if (!response.ok) {
         const errorContent = `Error fetching page: ${response.status} ${response.statusText}`;
         return {
@@ -28,7 +34,11 @@ export const fetchPage = createTool({
 
       const html = await response.text();
       const title = extractTitle(html);
-      const content = stripHtml(html);
+      let content = stripHtml(html);
+
+      if (content.length > MAX_CONTENT_LENGTH) {
+        content = content.slice(0, MAX_CONTENT_LENGTH);
+      }
 
       return {
         content,
@@ -37,14 +47,10 @@ export const fetchPage = createTool({
         contentLength: content.length,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorContent = `Error fetching page: ${errorMessage}`;
-      return {
-        content: errorContent,
-        title: '',
-        url: inputData.url,
-        contentLength: errorContent.length,
-      };
+      // Network and timeout errors are unrecoverable — throw per architecture pattern
+      throw error instanceof Error
+        ? error
+        : new Error(`Failed to fetch ${inputData.url}`);
     }
   },
 });

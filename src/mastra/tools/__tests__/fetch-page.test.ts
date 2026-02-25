@@ -79,11 +79,25 @@ describe('fetchPage tool', () => {
     expect(result.content).toContain('404');
   });
 
-  it('should handle network errors gracefully', async () => {
+  it('should throw on network errors', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-    const result = await fetchPage.execute!({ url: 'https://unreachable.example.com' }, {} as any);
+    await expect(
+      fetchPage.execute!({ url: 'https://unreachable.example.com' }, {} as any),
+    ).rejects.toThrow('Network error');
+  });
+
+  it('should truncate content exceeding size limit', async () => {
+    const largeContent = 'x'.repeat(200_000);
+    const html = `<html><head><title>Large</title></head><body>${largeContent}</body></html>`;
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: () => Promise.resolve(html),
+    });
+
+    const result = await fetchPage.execute!({ url: 'https://example.com/large' }, {} as any);
     assertOutput(result);
-    expect(result.content).toContain('Network error');
+    expect(result.contentLength).toBeLessThanOrEqual(100_000);
   });
 });

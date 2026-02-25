@@ -1,6 +1,6 @@
 # Story 1.2: Researcher Agent & Core Web Tools
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -345,11 +345,13 @@ TDD red-green-refactor cycle applied to each task sequentially. Verified Mastra 
 - `src/mastra/tools/web-search.ts` (NEW) -- Provider-defined web search factory
 - `src/mastra/tools/__tests__/web-search.test.ts` (NEW) -- Web search factory tests (5 tests)
 - `src/mastra/tools/fetch-page.ts` (NEW) -- Custom fetchPage tool
-- `src/mastra/tools/__tests__/fetch-page.test.ts` (NEW) -- Fetch page tool tests (7 tests)
+- `src/mastra/tools/__tests__/fetch-page.test.ts` (NEW) -- Fetch page tool tests (9 tests)
 - `src/mastra/index.ts` (MODIFIED) -- Added researcher agent registration
 - `.env.example` (MODIFIED) -- Added WEB_SEARCH_PROVIDER documentation
 - `package.json` (MODIFIED) -- Added @ai-sdk/anthropic dependency
+- `pnpm-lock.yaml` (MODIFIED) -- Updated lockfile for @ai-sdk/anthropic
 
 ## Change Log
 
 - 2026-02-24: Story 1.2 implementation complete -- Researcher agent, webSearch tool (provider-defined), fetchPage tool (custom), ResearcherOutputSchema, all registered in Mastra instance. 22 new tests added (29 total pass).
+- 2026-02-25: Code review fixes applied (6 MEDIUM issues) -- Converted require() to dynamic import() in web-search.ts, added fetch timeout (10s) and content size limit (100KB) to fetchPage, changed network errors to throw per architecture pattern, strengthened web-search test assertions, added content truncation test. 30 tests pass, typecheck clean.
