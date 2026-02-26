@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: talkforge
+      POSTGRES_DB: slidewreck
     volumes:
       - pgdata:/var/lib/postgresql/data
 

@@ -1,5 +1,5 @@
 /**
- * Tiered model mapping for TalkForge agents.
+ * Tiered model mapping for Slidewreck agents.
  * Each agent role maps to a specific Claude model tier.
  */
 

@@ -2,6 +2,7 @@ import { Mastra } from '@mastra/core';
 import { PostgresStore } from '@mastra/pg';
 import { researcher } from './agents/researcher';
 import { writer } from './agents/writer';
+import { slidewreck } from './workflows/slidewreck';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required. See .env.example for defaults.');
@@ -9,8 +10,9 @@ if (!process.env.DATABASE_URL) {
 
 export const mastra = new Mastra({
   storage: new PostgresStore({
-    id: 'talkforge-storage',
+    id: 'slidewreck-storage',
     connectionString: process.env.DATABASE_URL,
   }),
   agents: { researcher, writer },
+  workflows: { slidewreck },
 });

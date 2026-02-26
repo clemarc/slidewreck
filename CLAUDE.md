@@ -21,7 +21,7 @@ Phase 1 in progress — project scaffolding complete (story 1.1), building agent
 
 - Copy `.env.example` to `.env` and fill in values
 - Required: `ANTHROPIC_API_KEY`, `DATABASE_URL`
-- Default DB: `postgresql://postgres:postgres@localhost:5432/talkforge`
+- Default DB: `postgresql://postgres:postgres@localhost:5432/slidewreck`
 - PostgresStore is mandatory (no in-memory fallback)
 
 ## Project Structure

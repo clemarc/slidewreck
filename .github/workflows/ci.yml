@@ -17,7 +17,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: talkforge
+          POSTGRES_DB: slidewreck
         ports:
           - 5432:5432
         options: >-
@@ -27,7 +27,7 @@ jobs:
           --health-retries=5
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/talkforge
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/slidewreck
       ANTHROPIC_API_KEY: test-placeholder
 
     steps:

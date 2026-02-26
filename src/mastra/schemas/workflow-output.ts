@@ -10,7 +10,7 @@ const WorkflowMetadataSchema = z.object({
 });
 
 /**
- * Final output schema for the TalkForge pipeline.
+ * Final output schema for the Slidewreck pipeline.
  * Composes the research brief and speaker script from their respective agents,
  * plus metadata about the pipeline run.
  */
