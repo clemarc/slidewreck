@@ -1,6 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
-import { OPUS_MODEL } from '../config/models';
+import { SONNET_MODEL } from '../config/models';
 import { webSearch, webFetch } from '../tools/web-search';
 
 const FindingSchema = z.object({
@@ -55,6 +55,6 @@ When given a topic, you should:
 You have built-in web search and web fetch tools. Use web fetch to read pages found via search and extract the specific information you need. Orchestrate multi-step search-fetch-extract cycles to compile comprehensive research efficiently.
 
 Your output should be structured as a research brief with key findings, sources, existing talks, statistics, and suggested angles. Focus on information that would be valuable for a conference speaker preparing their presentation.`,
-  model: OPUS_MODEL,
+  model: SONNET_MODEL,
   tools: { webSearch, webFetch },
 });

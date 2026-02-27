@@ -18,7 +18,7 @@ describe('Anthropic provider-defined tools', () => {
     });
 
     it('should be configured with maxUses limit', () => {
-      expect(webSearchAny.args).toEqual({ maxUses: 5 });
+      expect(webSearchAny.args).toEqual({ maxUses: 10 });
     });
   });
 
@@ -34,7 +34,7 @@ describe('Anthropic provider-defined tools', () => {
 
     it('should be configured with maxUses, maxContentTokens, and citations', () => {
       expect(webFetchAny.args).toEqual({
-        maxUses: 15,
+        maxUses: 30,
         maxContentTokens: 20000,
         citations: { enabled: true },
       });

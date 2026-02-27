@@ -52,8 +52,8 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Advanced Pipeline Control
-  epic-2: backlog
-  2-0-pipeline-integration-tests: backlog
+  epic-2: in-progress
+  2-0-pipeline-integration-tests: review
   2-1-architect-agent-timing-tool: backlog
   2-2-optional-constraints-input: backlog
   2-3-structure-selection-gate-with-loopback: backlog
