@@ -2,6 +2,7 @@ import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { PostgresStore } from '@mastra/pg';
 import { researcher } from './agents/researcher';
+import { architect } from './agents/talk-architect';
 import { writer } from './agents/writer';
 import { slidewreck } from './workflows/slidewreck';
 
@@ -33,6 +34,6 @@ export const mastra = new Mastra({
     name: 'slidewreck',
     level: parseLogLevel(process.env.LOG_LEVEL),
   }),
-  agents: { researcher, writer },
+  agents: { researcher, architect, writer },
   workflows: { slidewreck },
 });
