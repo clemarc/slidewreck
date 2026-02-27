@@ -1,6 +1,6 @@
 # Story 2.2: Optional Constraints Input
 
-Status: review
+Status: done
 
 ## Story
 
