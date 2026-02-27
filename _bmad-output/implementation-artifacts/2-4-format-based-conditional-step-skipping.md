@@ -1,6 +1,6 @@
 # Story 2.4: Format-Based Conditional Step Skipping
 
-Status: review
+Status: done
 
 ## Story
 
