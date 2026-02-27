@@ -10,12 +10,14 @@ vi.mock('@mastra/core', () => {
 });
 vi.mock('@mastra/pg', () => {
   const PostgresStore = vi.fn();
-  return { PostgresStore };
+  const PgVector = vi.fn();
+  return { PostgresStore, PgVector };
 });
 vi.mock('@mastra/core/logger', () => ({
   createLogger: vi.fn().mockReturnValue({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 vi.mock('../agents/researcher', () => ({ researcher: {} }));
+vi.mock('../agents/talk-architect', () => ({ architect: {} }));
 vi.mock('../agents/writer', () => ({ writer: {} }));
 vi.mock('../workflows/slidewreck', () => ({ slidewreck: {} }));
 
@@ -88,5 +90,31 @@ describe('Mastra logger configuration', () => {
       name: 'slidewreck',
       level: 'debug',
     });
+  });
+});
+
+describe('Mastra vectors configuration', () => {
+  afterEach(() => {
+    process.env = { ...originalEnv, DATABASE_URL: 'postgresql://test:test@localhost:5432/test' };
+  });
+
+  it('registers pgVector in vectors config', async () => {
+    vi.resetModules();
+
+    const { Mastra } = await import('@mastra/core');
+    const { PgVector } = await import('@mastra/pg');
+    await import('../index');
+
+    expect(PgVector).toHaveBeenCalledWith({
+      id: 'pg-vector',
+      connectionString: 'postgresql://test:test@localhost:5432/test',
+    });
+    expect(Mastra).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vectors: expect.objectContaining({
+          pgVector: expect.anything(),
+        }),
+      }),
+    );
   });
 });
