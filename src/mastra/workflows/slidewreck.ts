@@ -16,6 +16,17 @@ import { clearUserReferences, indexUserReferences } from '../rag/user-references
 import { createBestPracticesIndex, indexBestPractices } from '../rag/best-practices';
 import { BEST_PRACTICES_INDEX_NAME } from '../rag/best-practices-content';
 
+// TODO: Mastra .map() erases TPrevSchema to `any`, removing compile-time safety
+// for all inputData fields in map callbacks. Track upstream: @mastra/core .map() types.
+function getFormatDuration(format: string) {
+  const key = format as WorkflowInput['format'];
+  const duration = FORMAT_DURATION_RANGES[key];
+  if (!duration) {
+    throw new Error(`Unknown talk format: "${format}"`);
+  }
+  return duration;
+}
+
 // Agent steps with structured output (AC: #1, #7)
 const researcherStep = createStep(researcher, {
   structuredOutput: { schema: ResearcherOutputSchema },
@@ -172,7 +183,7 @@ export const slidewreck = createWorkflow({
   })
   .map(async ({ inputData }) => {
     const { topic, audienceLevel, format, constraints } = inputData;
-    const duration = FORMAT_DURATION_RANGES[format];
+    const duration = getFormatDuration(format);
     return {
       prompt: `Research the following conference talk topic and produce a comprehensive research brief.
 
@@ -201,7 +212,7 @@ Focus on finding:
     const researchBrief = getStepResult(researcherStep);
     const initData = getInitData<WorkflowInput>();
     const { topic, audienceLevel, format, constraints } = initData;
-    const duration = FORMAT_DURATION_RANGES[format];
+    const duration = getFormatDuration(format);
     const feedback = gateResult.feedback ?? '';
 
     return {
@@ -229,7 +240,7 @@ ${feedback || 'No specific feedback provided.'}
     const initData = getInitData<WorkflowInput>();
     const { audienceLevel } = initData;
     const format = initData.format;
-    const duration = FORMAT_DURATION_RANGES[format];
+    const duration = getFormatDuration(format);
 
     // Format-specific writing instructions (AC: #1 lightning condensed, AC: #3 keynote extended)
     let formatInstructions = '';
