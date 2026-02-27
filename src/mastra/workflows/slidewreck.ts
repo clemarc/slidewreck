@@ -40,18 +40,25 @@ const architectStructureStep = createStep({
   execute: async ({ inputData, suspend, resumeData, suspendData }) => {
     // On approval, return the architect output from the last suspend payload
     if (resumeData?.approved) {
-      const lastOutput = (suspendData as { output?: unknown })?.output as ArchitectOutput | undefined;
+      const lastOutput = (suspendData as { output?: unknown })?.output;
+      if (!lastOutput) {
+        throw new Error('architect-structure: suspendData.output missing on approval resume — cannot retrieve architect options');
+      }
       return {
         approved: true,
         feedback: resumeData.feedback,
-        architectOutput: lastOutput ?? ({ options: [] } as unknown as ArchitectOutput),
+        architectOutput: lastOutput as ArchitectOutput,
       };
     }
 
     // Build prompt: append rejection feedback if this is a loopback
     let prompt = inputData.prompt;
-    if (resumeData && !resumeData.approved && resumeData.feedback) {
-      prompt += `\n\n## Previous Feedback (speaker rejected)\n${resumeData.feedback}\nGenerate 3 NEW distinct structure options addressing this feedback.`;
+    if (resumeData && !resumeData.approved) {
+      if (resumeData.feedback) {
+        prompt += `\n\n## Previous Feedback (speaker rejected)\n${resumeData.feedback}\nGenerate 3 NEW distinct structure options addressing this feedback.`;
+      } else {
+        prompt += `\n\n## Note: Speaker rejected the previous options\nGenerate 3 NEW distinct structure options with different approaches.`;
+      }
     }
 
     // Call architect agent with structured output

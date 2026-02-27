@@ -659,6 +659,36 @@ describe('slidewreck pipeline integration', () => {
     expect(finalResult.status).toBe('success');
   }, 30_000);
 
+  it('should re-suspend at Gate 2 when speaker rejects without feedback (no-feedback loopback)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInput });
+
+    await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true },
+    });
+
+    // Reject at Gate 2 with no feedback
+    const rejectResult = await run.resume({
+      step: 'architect-structure',
+      resumeData: { approved: false },
+    });
+
+    expect(rejectResult.status).toBe('suspended');
+    if (rejectResult.status !== 'suspended') return;
+    expect(rejectResult.suspended).toContainEqual(['architect-structure']);
+
+    // Approve on second attempt — pipeline should continue to Gate 3
+    const approveResult = await run.resume({
+      step: 'architect-structure',
+      resumeData: { approved: true },
+    });
+
+    expect(approveResult.status).toBe('suspended');
+    if (approveResult.status !== 'suspended') return;
+    expect(approveResult.suspended).toContainEqual(['review-script']);
+  }, 15_000);
+
   it('should complete pipeline when constraints are provided in input', async () => {
     const run = await testPipeline.createRun();
     await run.start({ inputData: testInputWithConstraints });

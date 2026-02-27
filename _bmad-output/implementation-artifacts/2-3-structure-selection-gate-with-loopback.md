@@ -1,6 +1,6 @@
 # Story 2.3: Structure Selection Gate with Loopback
 
-Status: review
+Status: done
 
 ## Story
 
@@ -275,7 +275,14 @@ Claude Opus 4.6 (claude-opus-4-6)
 - 5 new integration tests added (Gate 2 suspension, approval, rejection loopback, multi-rejection, error propagation updated)
 - Existing tests updated for 3-gate flow (Gate 1 → Gate 2 → Gate 3)
 - Error pipeline updated with architect step between Gate 1 and Writer
-- 152 total tests passing
+- 152 total tests passing (pre-review)
+
+### Code Review Fixes Applied
+
+- **[HIGH] Fixed unsafe fallback in architectStructureStep**: Replaced `({ options: [] } as unknown as ArchitectOutput)` fallback with explicit `throw new Error(...)` when `suspendData.output` is missing on approval resume. Prevents cryptic schema validation errors.
+- **[MEDIUM] Fixed no-feedback rejection path**: Changed condition to handle `{ approved: false }` without feedback — now appends "Generate 3 NEW distinct structure options with different approaches" to prompt instead of silently re-running identical prompt.
+- **[MEDIUM] Added integration test for no-feedback rejection loopback**: New test verifies rejection without feedback re-suspends at Gate 2, then approval continues to Gate 3.
+- 153 total tests passing (post-review)
 
 ### File List
 
