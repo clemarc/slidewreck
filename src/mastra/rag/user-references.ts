@@ -12,9 +12,14 @@ const FETCH_TIMEOUT_MS = 30_000;
 
 /**
  * Deletes and recreates the user references index for a clean state per pipeline run.
+ * Handles the case where the index doesn't exist yet (first run).
  */
 export async function clearUserReferences(pgVector: PgVector): Promise<void> {
-  await pgVector.deleteIndex({ indexName: USER_REFERENCES_INDEX_NAME });
+  try {
+    await pgVector.deleteIndex({ indexName: USER_REFERENCES_INDEX_NAME });
+  } catch {
+    // Index may not exist on first run — safe to ignore
+  }
   await pgVector.createIndex({
     indexName: USER_REFERENCES_INDEX_NAME,
     dimension: EMBEDDING_DIMENSION,
