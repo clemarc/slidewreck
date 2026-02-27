@@ -40,7 +40,7 @@ export const slidewreck = createWorkflow({
   outputSchema: WorkflowOutputSchema,
 })
   .map(async ({ inputData }) => {
-    const { topic, audienceLevel, format } = inputData;
+    const { topic, audienceLevel, format, constraints } = inputData;
     const duration = FORMAT_DURATION_RANGES[format];
     return {
       prompt: `Research the following conference talk topic and produce a comprehensive research brief.
@@ -48,7 +48,7 @@ export const slidewreck = createWorkflow({
 Topic: ${topic}
 Audience Level: ${audienceLevel}
 Format: ${format} (${duration.minMinutes}-${duration.maxMinutes} minutes)
-
+${constraints ? `\nSpeaker Constraints: ${constraints}\n` : ''}
 Focus on finding:
 - Current trends and data related to this topic
 - Existing talks and presentations on similar subjects

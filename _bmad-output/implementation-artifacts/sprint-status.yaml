@@ -55,7 +55,7 @@ development_status:
   epic-2: in-progress
   2-0-pipeline-integration-tests: done
   2-1-architect-agent-timing-tool: done
-  2-2-optional-constraints-input: backlog
+  2-2-optional-constraints-input: review
   2-3-structure-selection-gate-with-loopback: backlog
   2-4-format-based-conditional-step-skipping: backlog
   epic-2-retrospective: optional
