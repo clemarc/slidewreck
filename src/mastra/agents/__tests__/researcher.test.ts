@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ResearcherOutputSchema, researcher } from '../researcher';
 import { SONNET_MODEL } from '../../config/models';
 
@@ -112,7 +114,99 @@ describe('Researcher agent', () => {
     expect(toolKeys).toContain('query-user-references');
   });
 
+  it('should have bestPracticesQueryTool bound for RAG access', async () => {
+    const tools = await researcher.listTools();
+    const toolKeys = Object.keys(tools);
+    expect(toolKeys).toContain('query-best-practices');
+  });
+
   it('should have a name', () => {
     expect(researcher.name).toBe('Researcher');
+  });
+
+  it('should mention query-best-practices tool in instructions source', () => {
+    const source = readFileSync(join(__dirname, '../researcher.ts'), 'utf-8');
+    expect(source).toContain('query-best-practices');
+  });
+
+  it('should mention source attribution in instructions source', () => {
+    const source = readFileSync(join(__dirname, '../researcher.ts'), 'utf-8');
+    expect(source).toContain('sourceType');
+  });
+});
+
+describe('ResearcherOutputSchema — RAG source attribution', () => {
+  const baseBrief = {
+    keyFindings: [
+      { finding: 'AI adoption is growing rapidly', source: 'https://example.com', relevance: 'high' },
+    ],
+    sources: [
+      { url: 'https://example.com', title: 'AI Report 2026', relevance: 'Primary research on AI trends' },
+    ],
+    existingTalks: [],
+    statistics: [],
+    suggestedAngles: ['Focus on practical applications'],
+  };
+
+  it('should accept findings with optional sourceType field', () => {
+    const brief = {
+      ...baseBrief,
+      keyFindings: [
+        { finding: 'AI growing', source: 'https://example.com', relevance: 'high', sourceType: 'web' },
+      ],
+    };
+    const result = ResearcherOutputSchema.safeParse(brief);
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept all valid sourceType values', () => {
+    for (const sourceType of ['user_reference', 'best_practice', 'web']) {
+      const brief = {
+        ...baseBrief,
+        keyFindings: [
+          { finding: 'test', source: 'src', relevance: 'rel', sourceType },
+        ],
+      };
+      const result = ResearcherOutputSchema.safeParse(brief);
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('should reject invalid sourceType values', () => {
+    const brief = {
+      ...baseBrief,
+      keyFindings: [
+        { finding: 'test', source: 'src', relevance: 'rel', sourceType: 'invalid' },
+      ],
+    };
+    const result = ResearcherOutputSchema.safeParse(brief);
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept optional bestPracticesGuidance field', () => {
+    const brief = {
+      ...baseBrief,
+      bestPracticesGuidance: [
+        { category: 'structure', guidance: 'Use Problem-Solution-Demo pattern' },
+      ],
+    };
+    const result = ResearcherOutputSchema.safeParse(brief);
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept bestPracticesGuidance with optional applicableTo', () => {
+    const brief = {
+      ...baseBrief,
+      bestPracticesGuidance: [
+        { category: 'pacing', guidance: 'Use 10-20-30 rule', applicableTo: 'opening section' },
+      ],
+    };
+    const result = ResearcherOutputSchema.safeParse(brief);
+    expect(result.success).toBe(true);
+  });
+
+  it('should remain backward-compatible — existing briefs without new fields still parse', () => {
+    const result = ResearcherOutputSchema.safeParse(baseBrief);
+    expect(result.success).toBe(true);
   });
 });
