@@ -831,6 +831,12 @@ describe('slidewreck pipeline integration', () => {
     const payload = (resumeResult.suspendPayload as Record<string, unknown>)?.['review-script'];
     const parsed = GateSuspendSchema.safeParse(payload);
     expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    // Gate 3 output is the writer output (not architect output), proving the full
+    // pipeline flowed: architect default structure → writer .map() → writer step → gate 3
+    const writerOutput = WriterOutputSchema.safeParse(parsed.data.output);
+    expect(writerOutput.success).toBe(true);
   }, 15_000);
 
   it('should execute all 3 gates for keynote format (AC: #3)', async () => {
