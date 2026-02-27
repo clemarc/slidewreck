@@ -1,6 +1,6 @@
 # Story 2.0: Pipeline Integration Tests
 
-Status: review
+Status: done
 
 ## Story
 
