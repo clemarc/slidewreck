@@ -376,6 +376,48 @@ So that I maintain creative control and the output reflects my guidance.
 
 Speaker can provide optional constraints, choose from multiple talk structure options, reject and regenerate with feedback, and have format-specific step skipping.
 
+### Story 2.0: Pipeline Integration Tests
+
+As a developer,
+I want integration tests that verify the full TalkForge pipeline data flow end-to-end with mocked LLM responses,
+So that I can catch pipeline-level regressions that unit tests miss.
+
+**Acceptance Criteria:**
+
+**Given** the integration test suite in `src/mastra/workflows/__tests__/talkforge.integration.test.ts`
+**When** I run `pnpm test`
+**Then** the integration tests execute alongside existing unit tests
+
+**Given** the integration tests mock all LLM responses (no real API calls)
+**When** the pipeline executes from topic input through to final output
+**Then** data flows correctly between Researcher → Gate 1 → Writer → Gate 3 steps
+**And** each step receives the expected input shape from the previous step's output
+
+**Given** the pipeline reaches Gate 1 (research review)
+**When** the workflow suspends
+**Then** the suspend payload matches `GateSuspendSchema` with `agentId`, `gateId`, `output`, and `summary`
+**And** the workflow can be resumed with `GateResumeSchema` data (`approved`, `feedback`)
+**And** the resumed workflow continues to the Writer step
+
+**Given** the pipeline reaches Gate 3 (script review)
+**When** the workflow suspends and is resumed with approval
+**Then** the pipeline completes successfully
+**And** the final output conforms to `WorkflowOutputSchema` including `researchBrief`, `speakerScript` (with timing annotations), and `metadata`
+
+**Given** the workflow has successfully suspended at Gate 1 and a subsequent step fails
+**When** the error propagates
+**Then** the workflow run captures the error state
+**And** the previously captured Gate 1 suspend state remains intact in storage (not corrupted by the failure)
+
+**Given** the workflow fails before reaching any gate (e.g., Researcher step errors)
+**When** the error propagates
+**Then** the workflow run transitions to an error state
+**And** the run is queryable with its error details
+
+**Given** the mocked LLM responses return structured output matching agent output schemas
+**When** I inspect the mock setup
+**Then** mocks use `ResearcherOutputSchema` and `WriterOutputSchema` to generate valid typed responses
+
 ### Story 2.1: Architect Agent & Timing Tool
 
 As a speaker,

@@ -49,10 +49,11 @@ development_status:
   1-4-writer-agent-writing-tools: done
   1-5-pipeline-input-schema-validation: done
   1-6-end-to-end-pipeline-workflow-with-human-gates: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # Epic 2: Advanced Pipeline Control
   epic-2: backlog
+  2-0-pipeline-integration-tests: backlog
   2-1-architect-agent-timing-tool: backlog
   2-2-optional-constraints-input: backlog
   2-3-structure-selection-gate-with-loopback: backlog

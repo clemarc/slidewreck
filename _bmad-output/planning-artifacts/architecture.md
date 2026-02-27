@@ -463,12 +463,33 @@ Every tool must:
 
 **Adding an Eval:** Create scorer file → register in Mastra config → verify in Studio Scorers tab
 
+### Defensive Validation Checklist
+
+All Zod schemas and tool implementations MUST apply these validation patterns. Failure to follow this checklist was the primary source of MEDIUM code review findings in Epic 1.
+
+1. **String inputs:** Always use `.min(1)` to reject empty strings. Never accept bare `z.string()` for user-facing or agent-facing inputs.
+2. **Numeric inputs:** Always use `.positive()` or `.min(0)` as appropriate. Durations, counts, and indices must not accept negative values.
+3. **Fetch operations:** All HTTP requests (tool-level `fetch`, not provider-defined tools) must specify a timeout (default 30s) and a response size limit. Use `AbortController` for timeout enforcement. Note: this does not apply to Anthropic provider-defined tools (`web_search`, `web_fetch`). Applies when custom tools perform direct HTTP calls (e.g., Phase 5 `render-mermaid`, or any future tool hitting external APIs).
+4. **Optional fields:** Every `.optional()` field must include `.describe()` explaining when/why it would be absent. This aids both LLM structured output and developer comprehension.
+5. **Error path strategy:** Every tool and schema must define its error behaviour upfront — does it throw (unrecoverable), return partial result with warning (recoverable), or substitute a default? Document this in the tool's `description` field.
+
+### Mastra API Verification Checklist
+
+Mastra documentation lags behind installed versions. Every story introducing a new Mastra API MUST follow this 4-step verification process before implementing.
+
+1. **Import paths:** Verify the exact import path from installed `.d.ts` files (e.g., `@mastra/core/agent` vs `@mastra/core`). Do not trust documentation examples — check `node_modules/@mastra/core/dist/` type exports.
+2. **Constructor params:** Read the constructor or factory function signature from type definitions. Pay attention to required vs optional params, param naming (e.g., `id` vs `name`), and param types.
+3. **Return types:** Verify return types of key methods (e.g., `mastra.getWorkflow()` returns a single workflow, not an array). Check for `undefined` return possibilities.
+4. **Minimal isolation test:** Write a focused test that exercises the specific Mastra API surface (import path, constructor, key methods) in isolation. This is distinct from TDD business-logic tests — the goal here is to verify API compatibility with the installed Mastra version before building on it.
+
 ### Enforcement
 
 - All AI agents implementing stories MUST check these patterns before writing code
 - Naming violations caught by code review and linting
 - Schema conventions enforced by TypeScript compiler (Zod inference)
 - New components follow phase recipes to ensure consistency
+- **Defensive Validation Checklist** must be satisfied for all new schemas and tools
+- **Mastra API Verification Checklist** must be followed when introducing any new Mastra API
 
 ## Project Structure & Boundaries
 
