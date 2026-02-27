@@ -1,6 +1,6 @@
 # Story 3.1: RAG Infrastructure & Best Practices Knowledge Base
 
-Status: review
+Status: done
 
 ## Story
 

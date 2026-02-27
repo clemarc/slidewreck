@@ -6,6 +6,13 @@ import { openai } from '@ai-sdk/openai';
 import { BEST_PRACTICES_CONTENT, BEST_PRACTICES_INDEX_NAME, EMBEDDING_DIMENSION } from '../best-practices-content';
 import { createBestPracticesIndex, indexBestPractices } from '../best-practices';
 
+// Mock embedMany at file scope — vi.mock is hoisted regardless of placement
+vi.mock('ai', () => ({
+  embedMany: vi.fn().mockResolvedValue({
+    embeddings: Array.from({ length: 20 }, () => Array.from({ length: 1536 }, () => Math.random())),
+  }),
+}));
+
 // --- Task 1.3-1.4: Mastra API Verification Tests ---
 
 describe('Mastra RAG API verification', () => {
@@ -128,13 +135,6 @@ describe('indexBestPractices', () => {
       upsert: vi.fn().mockResolvedValue([]),
     } as unknown as PgVector;
 
-    // Mock embedMany to avoid real API calls
-    vi.mock('ai', () => ({
-      embedMany: vi.fn().mockResolvedValue({
-        embeddings: Array.from({ length: 20 }, () => Array.from({ length: 1536 }, () => Math.random())),
-      }),
-    }));
-
     const result = await indexBestPractices(mockPgVector);
 
     expect(result.chunksIndexed).toBeGreaterThan(0);
@@ -153,8 +153,6 @@ describe('indexBestPractices', () => {
       expect(meta.text).toBeDefined();
       expect(typeof meta.text).toBe('string');
     }
-
-    vi.restoreAllMocks();
   });
 });
 

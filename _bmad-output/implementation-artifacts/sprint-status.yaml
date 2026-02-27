@@ -62,7 +62,7 @@ development_status:
 
   # Epic 3: Reference-Informed Research
   epic-3: in-progress
-  3-1-rag-infrastructure-best-practices-knowledge-base: review
+  3-1-rag-infrastructure-best-practices-knowledge-base: done
   3-2-reference-material-upload-indexing: backlog
   3-3-rag-augmented-research: backlog
   epic-3-retrospective: optional
