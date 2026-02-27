@@ -13,6 +13,8 @@ import { WorkflowOutputSchema } from '../schemas/workflow-output';
 import { GateSuspendSchema, GateResumeSchema } from '../schemas/gate-payloads';
 import { createReviewGateStep } from './gates/review-gate';
 import { clearUserReferences, indexUserReferences } from '../rag/user-references';
+import { createBestPracticesIndex, indexBestPractices } from '../rag/best-practices';
+import { BEST_PRACTICES_INDEX_NAME } from '../rag/best-practices-content';
 
 // Agent steps with structured output (AC: #1, #7)
 const researcherStep = createStep(researcher, {
@@ -134,14 +136,26 @@ export const slidewreck = createWorkflow({
   outputSchema: WorkflowOutputSchema,
 })
   .map(async ({ inputData, getInitData }) => {
-    // Index speaker reference materials before researcher runs (Story 3.2, AC: #3)
+    // Seed RAG knowledge bases before researcher runs (Story 3.2 + 3.3)
     const initData = getInitData<WorkflowInput>();
+    const pgVector = new PgVector({
+      id: 'index-rag',
+      connectionString: process.env.DATABASE_URL!,
+    });
+
+    // Seed best practices KB (static curated content — Story 3.3, AC: #1)
+    try {
+      try { await pgVector.deleteIndex({ indexName: BEST_PRACTICES_INDEX_NAME }); } catch { /* may not exist yet */ }
+      await createBestPracticesIndex(pgVector);
+      const bpResult = await indexBestPractices(pgVector);
+      console.log(`[index-best-practices] Indexed ${bpResult.chunksIndexed} best practices chunks`);
+    } catch (error) {
+      console.error(`[index-best-practices] Failed, continuing without best practices:`, error);
+    }
+
+    // Index speaker reference materials (Story 3.2, AC: #3)
     if (initData.referenceMaterials?.length) {
       try {
-        const pgVector = new PgVector({
-          id: 'index-refs',
-          connectionString: process.env.DATABASE_URL!,
-        });
         await clearUserReferences(pgVector);
         const result = await indexUserReferences(pgVector, initData.referenceMaterials);
         if (result.failed.length > 0) {
@@ -166,12 +180,18 @@ Topic: ${topic}
 Audience Level: ${audienceLevel}
 Format: ${format} (${duration.minMinutes}-${duration.maxMinutes} minutes)${constraints ? `\nSpeaker Constraints: ${constraints}` : ''}
 
+Use your RAG tools to enrich the research:
+- Query the best practices knowledge base (query-best-practices) for talk structure, pacing, and audience engagement guidance relevant to this topic and format.
+- Query the user references knowledge base (query-user-references) for any speaker-provided materials. If no results are returned, the speaker has not uploaded reference materials — continue without them.
+- Tag each finding with its sourceType (user_reference, best_practice, or web).
+
 Focus on finding:
 - Current trends and data related to this topic
 - Existing talks and presentations on similar subjects
 - Relevant statistics and data points
 - Unique angles that would make this talk stand out
-- High-quality sources with URLs for attribution`,
+- High-quality sources with URLs for attribution
+- Best practices guidance for this talk format and audience level`,
     };
   })
   .then(researcherStep)
