@@ -1,7 +1,7 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { researcher, ResearcherOutputSchema } from '../agents/researcher';
-import { architect, ArchitectOutputSchema, type ArchitectOutput } from '../agents/talk-architect';
+import { architect, ArchitectOutputSchema, StructureOptionSchema, type ArchitectOutput } from '../agents/talk-architect';
 import { writer, WriterOutputSchema } from '../agents/writer';
 import {
   WorkflowInputSchema,
@@ -24,10 +24,14 @@ const writerStep = createStep(writer, {
 });
 
 // Output schema for the composite architect + gate step
+// Uses .min(1) instead of ArchitectOutputSchema's .length(3) to allow default single-section structure for lightning format
 export const ArchitectStructureOutputSchema = z.object({
   approved: z.boolean().describe('Whether the speaker approved the structure'),
   feedback: z.string().optional().describe('Speaker feedback on the chosen structure. Absent when no feedback provided.'),
-  architectOutput: ArchitectOutputSchema.describe('The approved architect output with 3 structure options'),
+  architectOutput: z.object({
+    options: z.array(StructureOptionSchema).min(1).describe('Structure options — 3 from architect agent, or 1 default for lightning format'),
+  }),
+  skippedArchitect: z.boolean().optional().describe('True when architect was skipped (lightning format). Absent when architect executed.'),
 });
 
 // Composite step: calls architect agent, suspends for structure review, handles loopback on rejection
@@ -37,7 +41,33 @@ const architectStructureStep = createStep({
   outputSchema: ArchitectStructureOutputSchema,
   suspendSchema: GateSuspendSchema,
   resumeSchema: GateResumeSchema,
-  execute: async ({ inputData, suspend, resumeData, suspendData }) => {
+  execute: async ({ inputData, suspend, resumeData, suspendData, getInitData }) => {
+    const initData = getInitData<WorkflowInput>();
+
+    // Lightning format: skip architect, return default single-section structure (FR-12, AC: #1)
+    if (initData.format === 'lightning') {
+      const duration = FORMAT_DURATION_RANGES.lightning;
+      console.log('[architect-structure] Skipped: lightning format — using default single-section structure');
+      return {
+        approved: true,
+        feedback: undefined,
+        architectOutput: {
+          options: [{
+            title: initData.topic,
+            description: `Single-section lightning talk on ${initData.topic}`,
+            sections: [{
+              title: initData.topic,
+              purpose: 'Complete lightning talk content',
+              contentWordCount: duration.maxMinutes * 150,
+              estimatedMinutes: duration.maxMinutes,
+            }],
+            rationale: 'Default single-section structure for lightning format — architect step skipped',
+          }],
+        },
+        skippedArchitect: true,
+      };
+    }
+
     // On approval, return the architect output from the last suspend payload
     if (resumeData?.approved) {
       const lastOutput = (suspendData as { output?: unknown })?.output;
@@ -153,7 +183,25 @@ ${feedback || 'No specific feedback provided.'}
     const researchBrief = getStepResult(researcherStep);
     const initData = getInitData<WorkflowInput>();
     const { audienceLevel } = initData;
-    const duration = FORMAT_DURATION_RANGES[initData.format];
+    const format = initData.format;
+    const duration = FORMAT_DURATION_RANGES[format];
+
+    // Format-specific writing instructions (AC: #1 lightning condensed, AC: #3 keynote extended)
+    let formatInstructions = '';
+    if (format === 'lightning') {
+      formatInstructions = `\n\n## Lightning Format Guidelines
+- Condense to a single clear narrative arc
+- No extended audience interaction prompts ([ASK AUDIENCE] max 1)
+- Minimal section transitions — dive straight into content
+- Strong opening hook and immediate call to action`;
+    } else if (format === 'keynote') {
+      formatInstructions = `\n\n## Keynote Format Guidelines
+- Include multiple audience interaction points throughout
+- Deeper examples and case studies in each section
+- Longer, more polished transitions between sections
+- Extended storytelling and narrative building
+- Multiple [PAUSE] and [ASK AUDIENCE] markers`;
+    }
 
     return {
       prompt: `Write a complete conference talk script based on the following research brief, approved structure, and speaker feedback.
@@ -174,7 +222,7 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
 - Add [PAUSE], [ASK AUDIENCE], and [EMPHASIS] markers
 - Write a strong opening hook and clear call to action
 - Use the wordCountToTime tool to verify duration
-- Use the checkJargon tool to verify language is appropriate for ${audienceLevel} audience`,
+- Use the checkJargon tool to verify language is appropriate for ${audienceLevel} audience${formatInstructions}`,
     };
   })
   .then(writerStep)
