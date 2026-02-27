@@ -106,6 +106,12 @@ describe('Researcher agent', () => {
     expect(toolKeys).toContain('webFetch');
   });
 
+  it('should have userReferencesQueryTool bound for RAG access', async () => {
+    const tools = await researcher.listTools();
+    const toolKeys = Object.keys(tools);
+    expect(toolKeys).toContain('query-user-references');
+  });
+
   it('should have a name', () => {
     expect(researcher.name).toBe('Researcher');
   });

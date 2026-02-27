@@ -143,6 +143,63 @@ describe('WorkflowInputSchema', () => {
   });
 });
 
+describe('optional referenceMaterials field', () => {
+  const validBase = {
+    topic: 'Test topic',
+    audienceLevel: 'beginner' as const,
+    format: 'lightning' as const,
+  };
+
+  it('should accept input with referenceMaterials array', () => {
+    const result = WorkflowInputSchema.safeParse({
+      ...validBase,
+      referenceMaterials: [
+        { type: 'file', path: '/docs/my-blog-post.md' },
+        { type: 'url', path: 'https://example.com/article' },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.referenceMaterials).toHaveLength(2);
+    }
+  });
+
+  it('should accept input without referenceMaterials (backward compatibility)', () => {
+    const result = WorkflowInputSchema.safeParse(validBase);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.referenceMaterials).toBeUndefined();
+    }
+  });
+
+  it('should reject empty path strings in reference materials', () => {
+    const result = WorkflowInputSchema.safeParse({
+      ...validBase,
+      referenceMaterials: [{ type: 'file', path: '' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid type values in reference materials', () => {
+    const result = WorkflowInputSchema.safeParse({
+      ...validBase,
+      referenceMaterials: [{ type: 'pdf', path: '/docs/file.pdf' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept empty referenceMaterials array', () => {
+    const result = WorkflowInputSchema.safeParse({
+      ...validBase,
+      referenceMaterials: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.referenceMaterials).toEqual([]);
+    }
+  });
+});
+
 describe('FORMAT_DURATION_RANGES', () => {
   it('should have entries for all three formats', () => {
     expect(FORMAT_DURATION_RANGES).toHaveProperty('lightning');

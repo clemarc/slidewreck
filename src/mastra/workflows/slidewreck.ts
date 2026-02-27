@@ -1,5 +1,6 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
+import { PgVector } from '@mastra/pg';
 import { researcher, ResearcherOutputSchema } from '../agents/researcher';
 import { architect, ArchitectOutputSchema, StructureOptionSchema, type ArchitectOutput } from '../agents/talk-architect';
 import { writer, WriterOutputSchema } from '../agents/writer';
@@ -11,6 +12,7 @@ import {
 import { WorkflowOutputSchema } from '../schemas/workflow-output';
 import { GateSuspendSchema, GateResumeSchema } from '../schemas/gate-payloads';
 import { createReviewGateStep } from './gates/review-gate';
+import { clearUserReferences, indexUserReferences } from '../rag/user-references';
 
 // Agent steps with structured output (AC: #1, #7)
 const researcherStep = createStep(researcher, {
@@ -131,6 +133,29 @@ export const slidewreck = createWorkflow({
   inputSchema: WorkflowInputSchema,
   outputSchema: WorkflowOutputSchema,
 })
+  .map(async ({ inputData, getInitData }) => {
+    // Index speaker reference materials before researcher runs (Story 3.2, AC: #3)
+    const initData = getInitData<WorkflowInput>();
+    if (initData.referenceMaterials?.length) {
+      try {
+        const pgVector = new PgVector({
+          id: 'index-refs',
+          connectionString: process.env.DATABASE_URL!,
+        });
+        await clearUserReferences(pgVector);
+        const result = await indexUserReferences(pgVector, initData.referenceMaterials);
+        if (result.failed.length > 0) {
+          console.warn(`[index-references] Failed to index: ${result.failed.join(', ')}`);
+        }
+        if (result.indexed > 0) {
+          console.log(`[index-references] Indexed ${result.indexed} chunks from ${initData.referenceMaterials.length - result.failed.length} materials`);
+        }
+      } catch (error) {
+        console.error(`[index-references] Indexing failed entirely, continuing without user references:`, error);
+      }
+    }
+    return inputData;
+  })
   .map(async ({ inputData }) => {
     const { topic, audienceLevel, format, constraints } = inputData;
     const duration = FORMAT_DURATION_RANGES[format];

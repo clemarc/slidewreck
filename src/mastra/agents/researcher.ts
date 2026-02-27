@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
 import { SONNET_MODEL } from '../config/models';
 import { webSearch, webFetch } from '../tools/web-search';
+import { userReferencesQueryTool } from '../tools/query-user-references';
 
 const FindingSchema = z.object({
   finding: z.string().describe('Key research finding'),
@@ -51,10 +52,13 @@ When given a topic, you should:
 4. Gather relevant statistics and data points that could strengthen a talk
 5. Identify unique angles and perspectives that would make the talk stand out
 6. Collect high-quality sources with URLs for attribution
+7. Query the speaker's uploaded reference materials (if available) to incorporate their existing knowledge and perspective
 
 You have built-in web search and web fetch tools. Use web fetch to read pages found via search and extract the specific information you need. Orchestrate multi-step search-fetch-extract cycles to compile comprehensive research efficiently.
 
+If the speaker has uploaded reference materials, use the query-user-references tool to search their materials for relevant content. Blend the speaker's own expertise with external research findings.
+
 Your output should be structured as a research brief with key findings, sources, existing talks, statistics, and suggested angles. Focus on information that would be valuable for a conference speaker preparing their presentation.`,
   model: SONNET_MODEL,
-  tools: { webSearch, webFetch },
+  tools: { webSearch, webFetch, 'query-user-references': userReferencesQueryTool },
 });
