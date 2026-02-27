@@ -47,8 +47,8 @@ export const slidewreck = createWorkflow({
 
 Topic: ${topic}
 Audience Level: ${audienceLevel}
-Format: ${format} (${duration.minMinutes}-${duration.maxMinutes} minutes)
-${constraints ? `\nSpeaker Constraints: ${constraints}\n` : ''}
+Format: ${format} (${duration.minMinutes}-${duration.maxMinutes} minutes)${constraints ? `\nSpeaker Constraints: ${constraints}` : ''}
+
 Focus on finding:
 - Current trends and data related to this topic
 - Existing talks and presentations on similar subjects
