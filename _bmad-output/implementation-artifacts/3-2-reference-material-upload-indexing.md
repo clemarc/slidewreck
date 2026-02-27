@@ -1,6 +1,6 @@
 # Story 3.2: Reference Material Upload & Indexing
 
-Status: review
+Status: done
 
 ## Story
 
