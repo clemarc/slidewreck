@@ -167,22 +167,27 @@ ${feedback || 'No specific feedback provided. Proceed with the research as-is.'}
 
 // --- Test setup ---
 
-const testInput = {
+const testInput: WorkflowInput = {
   topic: 'Building Resilient Microservices',
-  audienceLevel: 'intermediate' as const,
-  format: 'standard' as const,
+  audienceLevel: 'intermediate',
+  format: 'standard',
 };
 
-beforeAll(() => {
-  // Register test workflow with in-memory storage
-  new Mastra({
-    storage: new InMemoryStore({ id: 'integration-test-storage' }),
-    workflows: { 'slidewreck-integration-test': testPipeline },
-  });
+// --- Error propagation pipeline ---
+// Separate workflow with its own step instances and a writer that throws (AC #5)
+
+const errorResearcherStep = createStep({
+  id: 'researcher',
+  inputSchema: z.object({ prompt: z.string() }),
+  outputSchema: ResearcherOutputSchema,
+  execute: async () => mockResearcherOutput,
 });
 
-// --- Error propagation pipeline ---
-// Separate workflow with a writer step that throws, to test AC #5
+const errorResearchGate = createReviewGateStep({
+  gateId: 'review-research',
+  agentId: 'researcher',
+  summary: 'Research brief ready for review',
+});
 
 const failingWriterStep = createStep({
   id: 'script-writer',
@@ -191,6 +196,12 @@ const failingWriterStep = createStep({
   execute: async () => {
     throw new Error('Writer agent failed: simulated LLM error');
   },
+});
+
+const errorScriptGate = createReviewGateStep({
+  gateId: 'review-script',
+  agentId: 'script-writer',
+  summary: 'Speaker script ready for review',
 });
 
 const errorPipeline = createWorkflow({
@@ -203,19 +214,19 @@ const errorPipeline = createWorkflow({
     const duration = FORMAT_DURATION_RANGES[format];
     return { prompt: `Research ${topic} for ${audienceLevel} (${format}, ${duration.minMinutes}-${duration.maxMinutes}min)` };
   })
-  .then(mockResearcherStep)
-  .then(reviewResearchGate)
+  .then(errorResearcherStep)
+  .then(errorResearchGate)
   .map(async ({ inputData, getStepResult, getInitData }) => {
     const gateResult = inputData;
-    const researchBrief = getStepResult(mockResearcherStep);
+    const researchBrief = getStepResult(errorResearcherStep);
     const initData = getInitData<WorkflowInput>();
     const feedback = gateResult.feedback ?? '';
     return { prompt: `Write script. Research: ${JSON.stringify(researchBrief)}. Feedback: ${feedback}. Level: ${initData.audienceLevel}` };
   })
   .then(failingWriterStep)
-  .then(reviewScriptGate)
+  .then(errorScriptGate)
   .map(async ({ runId, getStepResult, getInitData }) => {
-    const researchBrief = getStepResult(mockResearcherStep);
+    const researchBrief = getStepResult(errorResearcherStep);
     const speakerScript = getStepResult(failingWriterStep);
     const initData = getInitData<WorkflowInput>();
     return {
@@ -226,11 +237,15 @@ const errorPipeline = createWorkflow({
   })
   .commit();
 
+// --- Test setup: register both workflows with a single Mastra instance ---
+
 beforeAll(() => {
-  // Register both test workflows with in-memory storage
   new Mastra({
-    storage: new InMemoryStore({ id: 'error-test-storage' }),
-    workflows: { 'slidewreck-error-test': errorPipeline },
+    storage: new InMemoryStore({ id: 'integration-test-storage' }),
+    workflows: {
+      'slidewreck-integration-test': testPipeline,
+      'slidewreck-error-test': errorPipeline,
+    },
   });
 });
 
@@ -364,5 +379,8 @@ describe('slidewreck pipeline integration', () => {
     });
 
     expect(resumeResult.status).toBe('failed');
+    if (resumeResult.status !== 'failed') return;
+    expect(resumeResult.error).toBeDefined();
+    expect(JSON.stringify(resumeResult.error)).toContain('simulated LLM error');
   }, 15_000);
 });
