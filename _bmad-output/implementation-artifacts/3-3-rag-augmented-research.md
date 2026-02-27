@@ -1,6 +1,6 @@
 # Story 3.3: RAG-Augmented Research
 
-Status: review
+Status: done
 
 ## Story
 
