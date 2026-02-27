@@ -97,6 +97,19 @@ describe('ArchitectOutputSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('should reject empty option description', () => {
+    const emptyDesc = {
+      options: [
+        { ...validOption, description: '' },
+        validOption,
+        validOption,
+      ],
+    };
+
+    const result = ArchitectOutputSchema.safeParse(emptyDesc);
+    expect(result.success).toBe(false);
+  });
+
   it('should reject options with empty sections array', () => {
     const noSections = {
       options: [

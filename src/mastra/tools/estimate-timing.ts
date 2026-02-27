@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { FORMAT_DURATION_RANGES, type WorkflowInput } from '../schemas/workflow-input';
+import { FORMAT_DURATION_RANGES, TalkFormatEnum } from '../schemas/workflow-input';
 
 const DEFAULT_WPM = 150;
 
@@ -15,9 +15,7 @@ export const estimateTiming = createTool({
     'Calculate per-section timing estimates for a talk structure based on word counts and speaking pace. Returns whether the total fits within the target duration range for the given talk format.',
   inputSchema: z.object({
     sections: z.array(SectionInputSchema).describe('Sections with title and estimated word count'),
-    format: z
-      .enum(['lightning', 'standard', 'keynote'])
-      .describe('Talk format determining target duration range'),
+    format: TalkFormatEnum.describe('Talk format determining target duration range'),
     wordsPerMinute: z
       .number()
       .positive()
@@ -42,7 +40,7 @@ export const estimateTiming = createTool({
   }),
   execute: async ({ sections, format, wordsPerMinute }) => {
     const wpm = wordsPerMinute ?? DEFAULT_WPM;
-    const range = FORMAT_DURATION_RANGES[format as WorkflowInput['format']];
+    const range = FORMAT_DURATION_RANGES[format];
 
     const sectionTimings = sections.map((section) => ({
       title: section.title,

@@ -20,6 +20,12 @@ describe('estimateTiming tool', () => {
     expect(estimateTiming.id).toBe('estimate-timing');
   });
 
+  it('should have description and outputSchema defined', () => {
+    expect(estimateTiming.description).toBeDefined();
+    expect(estimateTiming.description!.length).toBeGreaterThan(0);
+    expect(estimateTiming.outputSchema).toBeDefined();
+  });
+
   it('should calculate per-section timings at default 150 WPM', async () => {
     const result = await execute({
       sections: [

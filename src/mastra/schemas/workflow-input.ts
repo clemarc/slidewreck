@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
+export const TalkFormatEnum = z.enum(['lightning', 'standard', 'keynote']);
+
 export const WorkflowInputSchema = z.object({
   topic: z.string().min(1).describe('The talk topic as free-text (e.g., "Building Resilient Microservices")'),
   audienceLevel: z.enum(['beginner', 'intermediate', 'advanced', 'mixed']).describe('Target audience technical level'),
-  format: z.enum(['lightning', 'standard', 'keynote']).describe('Talk format determining target duration'),
+  format: TalkFormatEnum.describe('Talk format determining target duration'),
 });
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;

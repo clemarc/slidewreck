@@ -1,6 +1,6 @@
 # Story 2.1: Architect Agent & Timing Tool
 
-Status: review
+Status: done
 
 ## Story
 
