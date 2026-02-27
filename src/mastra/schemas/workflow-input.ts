@@ -6,6 +6,11 @@ export const WorkflowInputSchema = z.object({
   topic: z.string().min(1).describe('The talk topic as free-text (e.g., "Building Resilient Microservices")'),
   audienceLevel: z.enum(['beginner', 'intermediate', 'advanced', 'mixed']).describe('Target audience technical level'),
   format: TalkFormatEnum.describe('Talk format determining target duration'),
+  constraints: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Free-text speaker constraints for content generation (e.g., "Focus on observability, avoid Kubernetes"). Absent when speaker has no preferences.'),
 });
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;

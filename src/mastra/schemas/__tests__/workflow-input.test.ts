@@ -83,6 +83,64 @@ describe('WorkflowInputSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  describe('optional constraints field', () => {
+    it('should accept input with constraints provided', () => {
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Building Resilient Microservices',
+        audienceLevel: 'intermediate',
+        format: 'standard',
+        constraints: 'Focus on observability, avoid Kubernetes examples',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.constraints).toBe('Focus on observability, avoid Kubernetes examples');
+      }
+    });
+
+    it('should accept input without constraints (undefined)', () => {
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Test topic',
+        audienceLevel: 'beginner',
+        format: 'lightning',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.constraints).toBeUndefined();
+      }
+    });
+
+    it('should reject empty constraints string', () => {
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Test topic',
+        audienceLevel: 'beginner',
+        format: 'lightning',
+        constraints: '',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept long constraints text', () => {
+      const longConstraints = 'A'.repeat(2000);
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Test topic',
+        audienceLevel: 'advanced',
+        format: 'keynote',
+        constraints: longConstraints,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject non-string constraints', () => {
+      const result = WorkflowInputSchema.safeParse({
+        topic: 'Test topic',
+        audienceLevel: 'beginner',
+        format: 'lightning',
+        constraints: 42,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
 });
 
 describe('FORMAT_DURATION_RANGES', () => {

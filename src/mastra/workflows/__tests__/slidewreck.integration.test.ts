@@ -100,14 +100,14 @@ const testPipeline = createWorkflow({
   outputSchema: WorkflowOutputSchema,
 })
   .map(async ({ inputData }) => {
-    const { topic, audienceLevel, format } = inputData;
+    const { topic, audienceLevel, format, constraints } = inputData;
     const duration = FORMAT_DURATION_RANGES[format];
     return {
       prompt: `Research the following conference talk topic and produce a comprehensive research brief.
 
 Topic: ${topic}
 Audience Level: ${audienceLevel}
-Format: ${format} (${duration.minMinutes}-${duration.maxMinutes} minutes)
+Format: ${format} (${duration.minMinutes}-${duration.maxMinutes} minutes)${constraints ? `\nSpeaker Constraints: ${constraints}` : ''}
 
 Focus on finding:
 - Current trends and data related to this topic
@@ -171,6 +171,13 @@ const testInput: WorkflowInput = {
   topic: 'Building Resilient Microservices',
   audienceLevel: 'intermediate',
   format: 'standard',
+};
+
+const testInputWithConstraints: WorkflowInput = {
+  topic: 'Building Resilient Microservices',
+  audienceLevel: 'intermediate',
+  format: 'standard',
+  constraints: 'Focus on observability, avoid Kubernetes examples',
 };
 
 // --- Error propagation pipeline ---
@@ -367,6 +374,29 @@ describe('slidewreck pipeline integration', () => {
     expect(parsed.data.metadata.input.format).toBe('standard');
     expect(parsed.data.metadata.workflowRunId).toBeDefined();
     expect(parsed.data.metadata.completedAt).toBeDefined();
+  }, 15_000);
+
+  it('should complete pipeline when constraints are provided in input', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInputWithConstraints });
+
+    await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true, feedback: 'Good' },
+    });
+
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { approved: true },
+    });
+
+    expect(finalResult.status).toBe('success');
+    if (finalResult.status !== 'success') return;
+    expect(finalResult.result).toBeDefined();
+    const parsed = WorkflowOutputSchema.safeParse(finalResult.result);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.metadata.input.constraints).toBe('Focus on observability, avoid Kubernetes examples');
   }, 15_000);
 
   it('should capture error state when writer step fails after Gate 1 resume (AC: #5)', async () => {
