@@ -2,7 +2,7 @@
 title: 'README & Observability Setup'
 slug: 'readme-and-observability-setup'
 created: '2026-02-26'
-status: 'review'
+status: 'done'
 stepsCompleted: [1, 2, 3, 4, 5]
 tech_stack: ['Node.js', 'TypeScript (strict, ES2022)', 'pnpm', 'Mastra core 1.8.0', 'Mastra pg 1.7.0', 'Docker (pgvector/pg17)', 'Vitest']
 files_to_modify: ['README.md', '.env.example', 'src/mastra/index.ts']

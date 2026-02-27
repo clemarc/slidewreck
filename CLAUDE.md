@@ -8,7 +8,7 @@ Mastra agents to build presentations using BMAD and Claude Code. This is a Node.
 
 ## Project Status
 
-Phase 1 in progress — project scaffolding complete (story 1.1), building agents and workflows.
+Epic 1 complete (5/5 stories delivered, 99 tests passing). Epic 2 preparation underway — action items from retro executed, Story 2-0 (Pipeline Integration Tests) queued first.
 
 ## Development Commands
 
@@ -48,6 +48,8 @@ Phase 1 in progress — project scaffolding complete (story 1.1), building agent
 - Manual installation (not `mastra create`) — do not use scaffolding commands
 - Register all agents, workflows, and tools in `src/mastra/index.ts`
 - Use `query_library_docs` MCP tool before implementing Mastra features to verify current APIs
+- Follow the **Defensive Validation Checklist** in `_bmad-output/planning-artifacts/architecture.md` for all new schemas and tools
+- Follow the **Mastra API Verification Checklist** in `_bmad-output/planning-artifacts/architecture.md` when introducing any new Mastra API
 
 ## Model Tiers
 
