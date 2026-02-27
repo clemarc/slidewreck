@@ -111,14 +111,39 @@ const mockResearcherStep = createStep({
 });
 
 // Mock composite architect + gate step (mirrors production architectStructureStep)
-// Handles suspend, re-suspend on rejection, and return on approval.
+// Handles format-aware skipping (lightning), suspend, re-suspend on rejection, and return on approval.
 const mockArchitectStructureStep = createStep({
   id: 'architect-structure',
   inputSchema: z.object({ prompt: z.string() }),
   outputSchema: ArchitectStructureOutputSchema,
   suspendSchema: GateSuspendSchema,
   resumeSchema: GateResumeSchema,
-  execute: async ({ suspend, resumeData }) => {
+  execute: async ({ suspend, resumeData, getInitData }) => {
+    const initData = getInitData<WorkflowInput>();
+
+    // Lightning format: skip architect, return default structure immediately (FR-12)
+    if (initData.format === 'lightning') {
+      const duration = FORMAT_DURATION_RANGES.lightning;
+      return {
+        approved: true,
+        feedback: undefined,
+        architectOutput: {
+          options: [{
+            title: initData.topic,
+            description: `Single-section lightning talk on ${initData.topic}`,
+            sections: [{
+              title: initData.topic,
+              purpose: 'Complete lightning talk content',
+              contentWordCount: duration.maxMinutes * 150,
+              estimatedMinutes: duration.maxMinutes,
+            }],
+            rationale: 'Default single-section structure for lightning format — architect step skipped',
+          }],
+        },
+        skippedArchitect: true,
+      };
+    }
+
     if (resumeData?.approved) {
       return {
         approved: true,
@@ -231,7 +256,25 @@ ${feedback || 'No specific feedback provided.'}
     const researchBrief = getStepResult(mockResearcherStep);
     const initData = getInitData<WorkflowInput>();
     const { audienceLevel } = initData;
-    const duration = FORMAT_DURATION_RANGES[initData.format];
+    const format = initData.format;
+    const duration = FORMAT_DURATION_RANGES[format];
+
+    // Format-specific writing instructions (mirrors production)
+    let formatInstructions = '';
+    if (format === 'lightning') {
+      formatInstructions = `\n\n## Lightning Format Guidelines
+- Condense to a single clear narrative arc
+- No extended audience interaction prompts ([ASK AUDIENCE] max 1)
+- Minimal section transitions — dive straight into content
+- Strong opening hook and immediate call to action`;
+    } else if (format === 'keynote') {
+      formatInstructions = `\n\n## Keynote Format Guidelines
+- Include multiple audience interaction points throughout
+- Deeper examples and case studies in each section
+- Longer, more polished transitions between sections
+- Extended storytelling and narrative building
+- Multiple [PAUSE] and [ASK AUDIENCE] markers`;
+    }
 
     return {
       prompt: `Write a complete conference talk script based on the following research brief, approved structure, and speaker feedback.
@@ -252,7 +295,7 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
 - Add [PAUSE], [ASK AUDIENCE], and [EMPHASIS] markers
 - Write a strong opening hook and clear call to action
 - Use the wordCountToTime tool to verify duration
-- Use the checkJargon tool to verify language is appropriate for ${audienceLevel} audience`,
+- Use the checkJargon tool to verify language is appropriate for ${audienceLevel} audience${formatInstructions}`,
     };
   })
   .then(mockWriterStep)
@@ -287,6 +330,18 @@ const testInputWithConstraints: WorkflowInput = {
   audienceLevel: 'intermediate',
   format: 'standard',
   constraints: 'Focus on observability, avoid Kubernetes examples',
+};
+
+const testInputLightning: WorkflowInput = {
+  topic: 'Building Resilient Microservices',
+  audienceLevel: 'intermediate',
+  format: 'lightning',
+};
+
+const testInputKeynote: WorkflowInput = {
+  topic: 'Building Resilient Microservices',
+  audienceLevel: 'advanced',
+  format: 'keynote',
 };
 
 // --- Error propagation pipeline ---
@@ -715,6 +770,112 @@ describe('slidewreck pipeline integration', () => {
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
     expect(parsed.data.metadata.input.constraints).toBe('Focus on observability, avoid Kubernetes examples');
+  }, 15_000);
+
+  it('should skip Gate 2 for lightning format — Gate 1 approval goes directly to Gate 3 (AC: #1)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInputLightning });
+
+    // After Gate 1 approval, lightning should skip architect/Gate 2 and go straight to Gate 3
+    const resumeResult = await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true },
+    });
+
+    expect(resumeResult.status).toBe('suspended');
+    if (resumeResult.status !== 'suspended') return;
+    // Should be at review-script (Gate 3), NOT architect-structure (Gate 2)
+    expect(resumeResult.suspended).toContainEqual(['review-script']);
+  }, 15_000);
+
+  it('should complete lightning format pipeline with only 2 gates (AC: #1, #4)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInputLightning });
+
+    // Gate 1 approval
+    await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true },
+    });
+
+    // Gate 3 approval (Gate 2 skipped)
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { approved: true },
+    });
+
+    expect(finalResult.status).toBe('success');
+    if (finalResult.status !== 'success') return;
+
+    const parsed = WorkflowOutputSchema.safeParse(finalResult.result);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.metadata.input.format).toBe('lightning');
+  }, 15_000);
+
+  it('should use default single-section structure for lightning format (AC: #4)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInputLightning });
+
+    // Gate 1 approval — architect step returns immediately with default structure
+    const resumeResult = await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true },
+    });
+
+    expect(resumeResult.status).toBe('suspended');
+    if (resumeResult.status !== 'suspended') return;
+
+    // The architect step returned a default structure (not suspended), so it's at Gate 3 now.
+    // Verify the pipeline made it to review-script by checking the suspend payload.
+    const payload = (resumeResult.suspendPayload as Record<string, unknown>)?.['review-script'];
+    const parsed = GateSuspendSchema.safeParse(payload);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+
+    // Gate 3 output is the writer output (not architect output), proving the full
+    // pipeline flowed: architect default structure → writer .map() → writer step → gate 3
+    const writerOutput = WriterOutputSchema.safeParse(parsed.data.output);
+    expect(writerOutput.success).toBe(true);
+  }, 15_000);
+
+  it('should execute all 3 gates for keynote format (AC: #3)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInputKeynote });
+
+    // Gate 1 approval
+    const gate2 = await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true },
+    });
+
+    expect(gate2.status).toBe('suspended');
+    if (gate2.status !== 'suspended') return;
+    expect(gate2.suspended).toContainEqual(['architect-structure']);
+
+    // Gate 2 approval
+    const gate3 = await run.resume({
+      step: 'architect-structure',
+      resumeData: { approved: true },
+    });
+
+    expect(gate3.status).toBe('suspended');
+    if (gate3.status !== 'suspended') return;
+    expect(gate3.suspended).toContainEqual(['review-script']);
+
+    // Gate 3 approval
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { approved: true },
+    });
+
+    expect(finalResult.status).toBe('success');
+    if (finalResult.status !== 'success') return;
+
+    const parsed = WorkflowOutputSchema.safeParse(finalResult.result);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.metadata.input.format).toBe('keynote');
   }, 15_000);
 
   it('should capture error state when writer step fails after Gate 2 approval (AC: #5)', async () => {

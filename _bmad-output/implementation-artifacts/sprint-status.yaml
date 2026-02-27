@@ -57,7 +57,7 @@ development_status:
   2-1-architect-agent-timing-tool: done
   2-2-optional-constraints-input: done
   2-3-structure-selection-gate-with-loopback: done
-  2-4-format-based-conditional-step-skipping: backlog
+  2-4-format-based-conditional-step-skipping: review
   epic-2-retrospective: optional
 
   # Epic 3: Reference-Informed Research

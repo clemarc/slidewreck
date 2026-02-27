@@ -10,7 +10,7 @@ const SectionSchema = z.object({
   estimatedMinutes: z.number().min(0).describe('Estimated speaking duration for this section in minutes'),
 });
 
-const StructureOptionSchema = z.object({
+export const StructureOptionSchema = z.object({
   title: z.string().min(1).describe('Name of the structure approach (e.g., "Problem-Solution-Demo")'),
   description: z.string().min(1).describe('Brief overview of the narrative arc'),
   sections: z.array(SectionSchema).min(1).describe('Ordered section breakdown with timing estimates'),
