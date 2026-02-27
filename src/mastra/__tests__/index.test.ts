@@ -10,7 +10,8 @@ vi.mock('@mastra/core', () => {
 });
 vi.mock('@mastra/pg', () => {
   const PostgresStore = vi.fn();
-  return { PostgresStore };
+  const PgVector = vi.fn();
+  return { PostgresStore, PgVector };
 });
 vi.mock('@mastra/core/logger', () => ({
   createLogger: vi.fn().mockReturnValue({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
