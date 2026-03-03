@@ -8,7 +8,7 @@ Mastra agents to build presentations using BMAD and Claude Code. This is a Node.
 
 ## Project Status
 
-Epic 1 complete (5/5 stories delivered, 99 tests passing). Epic 2 preparation underway — action items from retro executed, Story 2-0 (Pipeline Integration Tests) queued first.
+Epics 1-3 complete. Epic 4 (Quality Evaluation & Insights) sprint planning next — API verification spike required first.
 
 ## Development Commands
 
@@ -50,6 +50,9 @@ Epic 1 complete (5/5 stories delivered, 99 tests passing). Epic 2 preparation un
 - Use `query_library_docs` MCP tool before implementing Mastra features to verify current APIs
 - Follow the **Defensive Validation Checklist** in `_bmad-output/planning-artifacts/architecture.md` for all new schemas and tools
 - Follow the **Mastra API Verification Checklist** in `_bmad-output/planning-artifacts/architecture.md` when introducing any new Mastra API
+- Follow the **Suspend/Resume Path Checklist** in `_bmad-output/planning-artifacts/architecture.md` for all steps using `suspend()`/`resume()` — test all 4 resume paths
+- Follow the **No Unsafe Type Coercion Rule** in `_bmad-output/planning-artifacts/architecture.md` — no `as unknown as` patterns, use Zod `.parse()` or explicit throws
+- Review **Known Limitations** in `_bmad-output/planning-artifacts/architecture.md` before assuming Mastra API behaviour
 
 ## Model Tiers
 
@@ -65,6 +68,12 @@ Agent roles map to model tiers in `src/mastra/config/models.ts`:
 - Epic/story breakdown: `_bmad-output/planning-artifacts/epics.md`
 - PRD: `_bmad-output/planning-artifacts/PRD.md`
 - Sprint status: `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+## Sprint Process
+
+- **One epic per sprint** — finish epic → retro → execute action items → sprint planning → next epic. No back-to-back epics without executing retro action items.
+- **API Verification Spike before sprint planning** — when introducing a new Mastra API surface (evals, memory, etc.), run a focused spike to verify API shape, imports, constructor params, and return types against the installed version. Story specs must reference verified behaviour, not assumed behaviour.
+- **Fixes to main go direct** — bugs found in shared code (e.g., model tier in `researcher.ts`) are fixed on `main` first. Feature branches rebase onto updated `main`. Never fix main-level bugs on feature branches that get squash-merged — the fix will revert.
 
 ## Git & PR Workflow
 

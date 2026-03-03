@@ -16,6 +16,12 @@ vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
 }));
 
+// Mock unpdf at file scope (hoisted)
+vi.mock('unpdf', () => ({
+  getDocumentProxy: vi.fn(),
+  extractText: vi.fn(),
+}));
+
 // --- MDocument.fromMarkdown and fromHTML API verification ---
 
 describe('MDocument fromMarkdown and fromHTML', () => {
@@ -187,6 +193,61 @@ describe('indexUserReferences', () => {
     expect(result.indexed).toBe(0);
     expect(result.failed).toEqual([]);
     expect(mockPgVector.upsert).not.toHaveBeenCalled();
+  });
+
+  it('should index PDF file content by extracting text via unpdf', async () => {
+    const { readFile } = await import('fs/promises');
+    const { getDocumentProxy, extractText } = await import('unpdf');
+    const mockPdfProxy = { numPages: 2 };
+    vi.mocked(readFile).mockResolvedValue(Buffer.from('fake-pdf-bytes'));
+    vi.mocked(getDocumentProxy).mockResolvedValue(mockPdfProxy as ReturnType<typeof getDocumentProxy> extends Promise<infer T> ? T : never);
+    vi.mocked(extractText).mockResolvedValue({ totalPages: 2, text: 'Extracted PDF content about presentations.' });
+
+    const { indexUserReferences } = await import('../user-references');
+
+    const result = await indexUserReferences(mockPgVector as unknown as PgVector, [
+      { type: 'file', path: '/docs/slides.pdf' },
+    ]);
+
+    expect(result.indexed).toBeGreaterThan(0);
+    expect(result.failed).toEqual([]);
+    expect(vi.mocked(getDocumentProxy)).toHaveBeenCalled();
+    expect(vi.mocked(extractText)).toHaveBeenCalledWith(mockPdfProxy, { mergePages: true });
+    expect(mockPgVector.upsert).toHaveBeenCalled();
+  });
+
+  it('should fail gracefully for PDFs with no extractable text', async () => {
+    const { readFile } = await import('fs/promises');
+    const { getDocumentProxy, extractText } = await import('unpdf');
+    const mockPdfProxy = { numPages: 1 };
+    vi.mocked(readFile).mockResolvedValue(Buffer.from('fake-scanned-pdf'));
+    vi.mocked(getDocumentProxy).mockResolvedValue(mockPdfProxy as ReturnType<typeof getDocumentProxy> extends Promise<infer T> ? T : never);
+    vi.mocked(extractText).mockResolvedValue({ totalPages: 1, text: '' });
+
+    const { indexUserReferences } = await import('../user-references');
+
+    const result = await indexUserReferences(mockPgVector as unknown as PgVector, [
+      { type: 'file', path: '/docs/scanned.pdf' },
+    ]);
+
+    expect(result.indexed).toBe(0);
+    expect(result.failed).toContain('/docs/scanned.pdf');
+  });
+
+  it('should fail gracefully for corrupt PDFs', async () => {
+    const { readFile } = await import('fs/promises');
+    const { getDocumentProxy } = await import('unpdf');
+    vi.mocked(readFile).mockResolvedValue(Buffer.from('not-a-pdf'));
+    vi.mocked(getDocumentProxy).mockRejectedValue(new Error('Invalid PDF structure'));
+
+    const { indexUserReferences } = await import('../user-references');
+
+    const result = await indexUserReferences(mockPgVector as unknown as PgVector, [
+      { type: 'file', path: '/docs/corrupt.pdf' },
+    ]);
+
+    expect(result.indexed).toBe(0);
+    expect(result.failed).toContain('/docs/corrupt.pdf');
   });
 });
 

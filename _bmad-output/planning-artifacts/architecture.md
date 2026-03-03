@@ -314,11 +314,12 @@ Each gate uses Mastra's `suspend()` with a payload containing the agent's output
 |---------|-----------|-----------------|
 | Sequential | `.then()` | Agent → gate → agent → gate chain |
 | Transform | `.map()` | Reshape agent output between steps |
-| Human gate | `suspend()` / `resume()` | All 4 review gates |
-| Loopback | `.dountil()` | Architect re-generation on rejection (Phase 2) |
-| Conditional | `.branch()` | Skip steps by talk format (Phase 2) |
+| Human gate | `suspend()` / `resume()` | Simple review gates (research, script) |
+| **Composite step** | `createStep()` + manual `suspend()`/`resume()` | **Preferred for loopback + conditional + gate logic** (architect structure step) |
 | Parallel | `.parallel()` | Asset creation: slides + Mermaid + images (Phase 5) |
 | Structured output | `createStep(agent, { structuredOutput })` | All agent steps |
+
+> **Architecture Note (Epic 2 Learning):** `.dountil()` and `.branch()` have unclear semantics when combined with `suspend()`/`resume()`. The **composite step pattern** — a single `createStep()` that internally calls the agent, suspends for review, and handles loopback on rejection — is simpler and proven. Use composite steps for any flow that combines human gates with conditional logic or loopback. See `architectStructureStep` in `slidewreck.ts` for the reference implementation.
 
 ### Error Handling Strategy
 
@@ -482,6 +483,80 @@ Mastra documentation lags behind installed versions. Every story introducing a n
 3. **Return types:** Verify return types of key methods (e.g., `mastra.getWorkflow()` returns a single workflow, not an array). Check for `undefined` return possibilities.
 4. **Minimal isolation test:** Write a focused test that exercises the specific Mastra API surface (import path, constructor, key methods) in isolation. This is distinct from TDD business-logic tests — the goal here is to verify API compatibility with the installed Mastra version before building on it.
 
+### Suspend/Resume Path Checklist
+
+Every composite step or gate using `suspend()`/`resume()` MUST handle all four resume paths. Missing paths were the primary source of HIGH code review findings in Epic 2.
+
+| Path | `resumeData.approved` | `resumeData.feedback` | Required Behaviour |
+|------|----------------------|----------------------|-------------------|
+| Approval + feedback | `true` | present | Apply feedback, return approved output |
+| Approval + no feedback | `true` | absent/empty | Return approved output as-is |
+| Rejection + feedback | `false` | present | Re-execute with feedback appended to prompt |
+| Rejection + no feedback | `false` | absent/empty | Re-execute with generic "try again" prompt |
+
+**Testing requirement:** Each path MUST have a dedicated test case. Use the mock `createStep()` pattern to simulate `resumeData` for each path.
+
+**Common pitfalls:**
+- Forgetting to check `suspendData.output` on approval resume (data was stored in the suspend payload)
+- Not distinguishing between `undefined` feedback and empty string feedback
+- Assuming rejection always has feedback — handle the no-feedback rejection path
+
+### No Unsafe Type Coercion Rule
+
+**BANNED:** `as unknown as T` pattern. This bypasses TypeScript's type system entirely and masks real type errors.
+
+```typescript
+// ANTI-PATTERN — never do this
+const result = someValue as unknown as ExpectedType;
+
+// CORRECT — explicit validation
+const parsed = ExpectedTypeSchema.parse(someValue); // throws ZodError if invalid
+
+// CORRECT — explicit error
+if (!isExpectedType(someValue)) {
+  throw new Error(`Expected ExpectedType, got ${typeof someValue}`);
+}
+```
+
+**Exception:** The only acceptable use of `as` is for narrowing from a known-compatible type (e.g., `as WorkflowInput` when `getInitData()` returns a generic type that is known to be `WorkflowInput` by workflow context). Even then, prefer `getInitData<WorkflowInput>()` if the API supports generics.
+
+### Known Limitations
+
+| Limitation | Impact | Workaround | Status |
+|-----------|--------|------------|--------|
+| `Agent.instructions` not publicly accessible | Cannot read agent instructions in tests | Read source file with `readFileSync()` and assert content | Permanent |
+| `MDocument` has no `fromPDF()` method | PDF reference materials cannot be indexed directly | Pre-process with `unpdf` library, feed extracted text to `MDocument.fromText()` | Resolved (Epic 3 retro) |
+| `pgVector.upsert()` creates duplicates without IDs | Re-indexing accumulates duplicate vectors | Use `deleteFilter` parameter for atomic source-level replacement (see below) | Resolved (Epic 3 retro) |
+
+### PgVector Upsert Pattern (Epic 3 Retro Finding)
+
+PgVector supports true upsert via `ON CONFLICT (vector_id)` when IDs are provided. Additionally, the `deleteFilter` parameter enables atomic per-source replacement:
+
+```typescript
+// Atomic replace all chunks from a specific source
+await pgVector.upsert({
+  indexName: 'user_references',
+  vectors: embeddings,
+  metadata: chunks.map(c => ({ ...c, source_id: material.path })),
+  deleteFilter: { source_id: material.path },
+});
+```
+
+This eliminates the need for deleting/recreating the entire index. Available methods: `updateVector()`, `deleteVector()`, `deleteVectors()`, `truncateIndex()`.
+
+### Embedding Provider Alternatives (Epic 3 Retro Finding)
+
+Anthropic has no embedding API. Current implementation uses OpenAI `text-embedding-3-small` (1536d). Evaluated alternatives:
+
+| Provider | Package | Dimensions | Cost | Notes |
+|----------|---------|-----------|------|-------|
+| OpenAI (current) | `@ai-sdk/openai` | 1536 | $0.02/1M tokens | Works but adds non-Anthropic dependency |
+| Voyage AI | `voyage-ai-provider` | 1024 (configurable) | $0.06/1M tokens (200M free) | Anthropic's recommended partner. Community AI SDK provider. |
+| @mastra/fastembed | `@mastra/fastembed` | 384 | Free (local ONNX) | Official Mastra package. Lower quality. ~130MB model download. |
+| Ollama | `ollama-ai-provider` | 768-1024 | Free (local) | Requires Ollama server. `nomic-embed-text` (768d) or `mxbai-embed-large` (1024d). |
+
+**Note:** Changing embedding dimensions requires recreating pgvector indexes (dimension is fixed at index creation time). The per-run delete+recreate pattern makes this a clean swap.
+
 ### Enforcement
 
 - All AI agents implementing stories MUST check these patterns before writing code
@@ -490,6 +565,8 @@ Mastra documentation lags behind installed versions. Every story introducing a n
 - New components follow phase recipes to ensure consistency
 - **Defensive Validation Checklist** must be satisfied for all new schemas and tools
 - **Mastra API Verification Checklist** must be followed when introducing any new Mastra API
+- **Suspend/Resume Path Checklist** must be satisfied for all steps using `suspend()`/`resume()`
+- **No Unsafe Type Coercion Rule** must be followed — no `as unknown as` patterns
 
 ## Project Structure & Boundaries
 

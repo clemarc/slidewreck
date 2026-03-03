@@ -3,6 +3,7 @@ import { PgVector } from '@mastra/pg';
 import { embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { readFile } from 'fs/promises';
+import { getDocumentProxy, extractText } from 'unpdf';
 import { EMBEDDING_DIMENSION } from './best-practices-content';
 
 export const USER_REFERENCES_INDEX_NAME = 'user_references';
@@ -46,10 +47,20 @@ export async function indexUserReferences(
     try {
       let doc: MDocument;
       if (material.type === 'file') {
-        const content = await readFile(material.path, 'utf-8');
-        doc = material.path.endsWith('.md')
-          ? MDocument.fromMarkdown(content)
-          : MDocument.fromText(content);
+        if (material.path.endsWith('.pdf')) {
+          const buffer = await readFile(material.path);
+          const pdf = await getDocumentProxy(new Uint8Array(buffer));
+          const { text } = await extractText(pdf, { mergePages: true });
+          if (!text.trim()) {
+            throw new Error('PDF contains no extractable text (may be scanned/image-only)');
+          }
+          doc = MDocument.fromText(text);
+        } else {
+          const content = await readFile(material.path, 'utf-8');
+          doc = material.path.endsWith('.md')
+            ? MDocument.fromMarkdown(content)
+            : MDocument.fromText(content);
+        }
       } else {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);

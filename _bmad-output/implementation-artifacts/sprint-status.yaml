@@ -58,14 +58,14 @@ development_status:
   2-2-optional-constraints-input: done
   2-3-structure-selection-gate-with-loopback: done
   2-4-format-based-conditional-step-skipping: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # Epic 3: Reference-Informed Research
   epic-3: done
   3-1-rag-infrastructure-best-practices-knowledge-base: done
   3-2-reference-material-upload-indexing: done
   3-3-rag-augmented-research: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   # Epic 4: Quality Evaluation & Insights
   epic-4: in-progress

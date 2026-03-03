@@ -1,7 +1,7 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { PgVector } from '@mastra/pg';
 import { researcher, ResearcherOutputSchema } from '../agents/researcher';
+import { pgVector } from '../config/database';
 import { architect, ArchitectOutputSchema, StructureOptionSchema, type ArchitectOutput } from '../agents/talk-architect';
 import { writer, WriterOutputSchema } from '../agents/writer';
 import {
@@ -149,10 +149,6 @@ export const slidewreck = createWorkflow({
   .map(async ({ inputData, getInitData }) => {
     // Seed RAG knowledge bases before researcher runs (Story 3.2 + 3.3)
     const initData = getInitData<WorkflowInput>();
-    const pgVector = new PgVector({
-      id: 'index-rag',
-      connectionString: process.env.DATABASE_URL!,
-    });
 
     // Seed best practices KB (static curated content — Story 3.3, AC: #1)
     try {
