@@ -15,6 +15,9 @@ import { createReviewGateStep } from './gates/review-gate';
 import { clearUserReferences, indexUserReferences } from '../rag/user-references';
 import { createBestPracticesIndex, indexBestPractices } from '../rag/best-practices';
 import { BEST_PRACTICES_INDEX_NAME } from '../rag/best-practices-content';
+import { runEvalSuite } from '../scorers/eval-suite';
+import { saveEvalResults, getScoreHistory } from '../scorers/eval-storage';
+import { analyzeTrends } from '../scorers/eval-trends';
 
 // TODO: Mastra .map() erases TPrevSchema to `any`, removing compile-time safety
 // for all inputData fields in map callbacks. Track upstream: @mastra/core .map() types.
@@ -284,9 +287,56 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
     const speakerScript = getStepResult(writerStep);
     const initData = getInitData<WorkflowInput>();
 
+    // Run eval suite against the approved speaker script (Story 4-3, FR-24)
+    let scorecard;
+    try {
+      scorecard = await runEvalSuite(String(speakerScript.speakerNotes));
+    } catch (error) {
+      console.error('[eval-suite] Failed to run eval suite:', error);
+    }
+
+    // Save eval results and run trend analysis (Story 4-4)
+    if (scorecard) {
+      try {
+        const { mastra } = await import('../index');
+        const compositeStore = mastra.getStorage();
+        if (compositeStore) {
+          const scoresStorage = await compositeStore.getStore('scores');
+          if (!scoresStorage) throw new Error('ScoresStorage not available');
+          const entityId = `talk-${initData.topic.toLowerCase().replace(/\s+/g, '-')}`;
+
+          await saveEvalResults(scoresStorage, scorecard, {
+            runId,
+            entityId,
+            topic: initData.topic,
+          });
+
+          // Build history for trend analysis
+          const scorerIds = scorecard.entries
+            .filter((e) => e.status === 'success')
+            .map((e) => e.scorerId);
+          const history: Record<string, number[]> = {};
+          for (const scorerId of scorerIds) {
+            const result = await getScoreHistory(scoresStorage, scorerId);
+            if (result.scores) {
+              history[scorerId] = result.scores.map((s: { score: number }) => s.score);
+            }
+          }
+
+          const trends = analyzeTrends(history);
+          if (trends) {
+            scorecard = { ...scorecard, trends };
+          }
+        }
+      } catch (error) {
+        console.error('[eval-storage] Failed to save scores or analyze trends:', error);
+      }
+    }
+
     return {
       researchBrief,
       speakerScript,
+      scorecard,
       metadata: {
         workflowRunId: runId,
         completedAt: new Date().toISOString(),

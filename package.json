@@ -6,7 +6,8 @@
     "dev": "mastra dev",
     "build": "mastra build",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval": "npx tsx src/eval.ts"
   },
   "keywords": [],
   "author": "",

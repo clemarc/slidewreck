@@ -606,6 +606,8 @@ So that the research brief blends external sources with my personal context and 
 
 ## Epic 4: Quality Evaluation & Insights
 
+> **API Spike:** See `_bmad-output/implementation-artifacts/spike-mastra-evals-api.md` for verified scorer API shape, registration pattern, and storage findings that supersede assumptions in stories below.
+
 Speaker can see automated quality scores (hook strength, pacing, jargon density) after each run and track improvement trends over multiple sessions.
 
 ### Story 4.1: Eval Scorers — Hook Strength & Narrative Coherence

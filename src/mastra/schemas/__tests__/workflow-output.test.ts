@@ -113,6 +113,37 @@ describe('WorkflowOutputSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('should accept output with optional scorecard and preserve it in parsed result', () => {
+    const result = WorkflowOutputSchema.safeParse({
+      researchBrief: validResearchBrief,
+      speakerScript: validSpeakerScript,
+      scorecard: {
+        entries: [
+          { scorerId: 'hook-strength', score: 4, reason: 'Strong', status: 'success' },
+          { scorerId: 'narrative-coherence', score: 3, status: 'success' },
+        ],
+        overallScore: 3.5,
+        timestamp: '2026-03-04T12:00:00.000Z',
+      },
+      metadata: validMetadata,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.scorecard).toBeDefined();
+      expect(result.data.scorecard?.entries).toHaveLength(2);
+      expect(result.data.scorecard?.overallScore).toBe(3.5);
+    }
+  });
+
+  it('should accept output without scorecard (backward compatible)', () => {
+    const result = WorkflowOutputSchema.safeParse({
+      researchBrief: validResearchBrief,
+      speakerScript: validSpeakerScript,
+      metadata: validMetadata,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('should reject invalid metadata input', () => {
     const result = WorkflowOutputSchema.safeParse({
       researchBrief: validResearchBrief,
