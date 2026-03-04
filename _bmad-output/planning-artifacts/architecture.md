@@ -527,6 +527,7 @@ if (!isExpectedType(someValue)) {
 | `Agent.instructions` not publicly accessible | Cannot read agent instructions in tests | Read source file with `readFileSync()` and assert content | Permanent |
 | `MDocument` has no `fromPDF()` method | PDF reference materials cannot be indexed directly | Pre-process with `unpdf` library, feed extracted text to `MDocument.fromText()` | Resolved (Epic 3 retro) |
 | `pgVector.upsert()` creates duplicates without IDs | Re-indexing accumulates duplicate vectors | Use `deleteFilter` parameter for atomic source-level replacement (see below) | Resolved (Epic 3 retro) |
+| `MastraScorer.getSteps()` crashes for prompt-based steps in `@mastra/core@1.8.0` | Cannot introspect scorer steps at runtime | Use `readFileSync()` source inspection in tests; verify step names via source text | Open (library bug) |
 
 ### PgVector Upsert Pattern (Epic 3 Retro Finding)
 

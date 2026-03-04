@@ -20,6 +20,16 @@ vi.mock('../agents/researcher', () => ({ researcher: {} }));
 vi.mock('../agents/talk-architect', () => ({ architect: {} }));
 vi.mock('../agents/writer', () => ({ writer: {} }));
 vi.mock('../workflows/slidewreck', () => ({ slidewreck: {} }));
+vi.mock('../scorers/hook-strength', () => ({ hookStrengthScorer: { id: 'hook-strength' } }));
+vi.mock('../scorers/narrative-coherence', () => ({
+  narrativeCoherenceScorer: { id: 'narrative-coherence' },
+}));
+vi.mock('../scorers/pacing-distribution', () => ({
+  pacingDistributionScorer: { id: 'pacing-distribution' },
+}));
+vi.mock('../scorers/jargon-density', () => ({
+  jargonDensityScorer: { id: 'jargon-density' },
+}));
 
 describe('parseLogLevel', () => {
   beforeEach(() => {
@@ -90,6 +100,72 @@ describe('Mastra logger configuration', () => {
       name: 'slidewreck',
       level: 'debug',
     });
+  });
+});
+
+describe('Mastra scorers configuration', () => {
+  afterEach(() => {
+    process.env = { ...originalEnv, DATABASE_URL: 'postgresql://test:test@localhost:5432/test' };
+  });
+
+  it('registers hook-strength scorer', async () => {
+    vi.resetModules();
+
+    const { Mastra } = await import('@mastra/core');
+    await import('../index');
+
+    expect(Mastra).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scorers: expect.objectContaining({
+          'hook-strength': expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  it('registers narrative-coherence scorer', async () => {
+    vi.resetModules();
+
+    const { Mastra } = await import('@mastra/core');
+    await import('../index');
+
+    expect(Mastra).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scorers: expect.objectContaining({
+          'narrative-coherence': expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  it('registers pacing-distribution scorer', async () => {
+    vi.resetModules();
+
+    const { Mastra } = await import('@mastra/core');
+    await import('../index');
+
+    expect(Mastra).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scorers: expect.objectContaining({
+          'pacing-distribution': expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  it('registers jargon-density scorer', async () => {
+    vi.resetModules();
+
+    const { Mastra } = await import('@mastra/core');
+    await import('../index');
+
+    expect(Mastra).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scorers: expect.objectContaining({
+          'jargon-density': expect.anything(),
+        }),
+      }),
+    );
   });
 });
 

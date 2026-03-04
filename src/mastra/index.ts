@@ -6,6 +6,10 @@ import { architect } from './agents/talk-architect';
 import { writer } from './agents/writer';
 import { slidewreck } from './workflows/slidewreck';
 import { pgVector } from './config/database';
+import { hookStrengthScorer } from './scorers/hook-strength';
+import { narrativeCoherenceScorer } from './scorers/narrative-coherence';
+import { pacingDistributionScorer } from './scorers/pacing-distribution';
+import { jargonDensityScorer } from './scorers/jargon-density';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
@@ -34,4 +38,10 @@ export const mastra = new Mastra({
   agents: { researcher, architect, writer },
   workflows: { slidewreck },
   vectors: { pgVector },
+  scorers: {
+    'hook-strength': hookStrengthScorer,
+    'narrative-coherence': narrativeCoherenceScorer,
+    'pacing-distribution': pacingDistributionScorer,
+    'jargon-density': jargonDensityScorer,
+  },
 });

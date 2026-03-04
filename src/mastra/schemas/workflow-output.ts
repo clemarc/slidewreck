@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ResearcherOutputSchema } from '../agents/researcher';
 import { WriterOutputSchema } from '../agents/writer';
 import { WorkflowInputSchema } from './workflow-input';
+import { ScorecardSchema } from './scorecard';
 
 const WorkflowMetadataSchema = z.object({
   workflowRunId: z.string().describe('Unique identifier for the workflow run'),
@@ -17,6 +18,7 @@ const WorkflowMetadataSchema = z.object({
 export const WorkflowOutputSchema = z.object({
   researchBrief: ResearcherOutputSchema.describe('Research brief produced by the Researcher agent'),
   speakerScript: WriterOutputSchema.describe('Speaker script produced by the Writer agent'),
+  scorecard: ScorecardSchema.optional().describe('Quality evaluation scorecard. Absent if eval suite was skipped or not yet implemented.'),
   metadata: WorkflowMetadataSchema.describe('Pipeline run metadata'),
 });
 

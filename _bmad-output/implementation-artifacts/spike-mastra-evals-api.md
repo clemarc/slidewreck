@@ -57,19 +57,16 @@ const pacingScorer = createScorer({
 
 ### Registration in Mastra Instance
 
-**CORRECTION from Epic 4 stories:** Scorers register as **direct `MastraScorer` instances**, NOT wrapped in `{ scorer: ... }`:
+**UPDATE (Story 4-2 code review):** The Mastra constructor generic constraint is `TScorers extends Record<string, MastraScorer>` — direct instances, NOT `{ scorer: instance }` wrapping. The `MastraScorerEntry` type is for `addScorer()` API, not the constructor. Story 4-1's `{ scorer }` wrapping caused TS2353 errors, corrected in Story 4-2:
 
 ```typescript
-// CORRECT (actual API)
+// CORRECT per Mastra constructor type (TScorers extends Record<string, MastraScorer>)
 export const mastra = new Mastra({
   scorers: {
     'hook-strength': hookStrengthScorer,
     'narrative-coherence': narrativeCoherenceScorer,
   },
 });
-
-// WRONG (what stories assumed)
-scorers: { 'hook-strength': { scorer: hookStrengthScorer } }  // ← MastraScorerEntry wrapping is NOT used here
 ```
 
 Dynamic registration also available: `mastra.addScorer(scorer)`, `mastra.getScorer(key)`, `mastra.listScorers()`, `mastra.removeScorer(key)`.
