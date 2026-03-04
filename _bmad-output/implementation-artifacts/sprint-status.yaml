@@ -22,7 +22,7 @@ sprint_status:
   4-1-eval-scorers-hook-strength-narrative-coherence: done
   4-2-eval-scorers-pacing-distribution-jargon-density: done
   4-3-automated-eval-suite-scorecard: done
-  4-4-eval-result-storage-trend-analysis: review
+  4-4-eval-result-storage-trend-analysis: done
 
   # Sprint closing tasks
   epic-4-retrospective: optional

@@ -1,6 +1,6 @@
 # Story 4.4: Eval Result Storage & Trend Analysis
 
-Status: review
+Status: done
 
 ## Story
 
