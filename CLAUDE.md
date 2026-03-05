@@ -8,7 +8,7 @@ Mastra agents to build presentations using BMAD and Claude Code. This is a Node.
 
 ## Project Status
 
-Epics 1-3 complete. Epic 4 (Quality Evaluation & Insights) sprint planning next — API verification spike required first.
+Epics 1-3 complete. Epic 4 (Quality Evaluation & Insights) sprint open — evals API spike done, story 4-1 ready for dev.
 
 ## Development Commands
 
@@ -16,22 +16,26 @@ Epics 1-3 complete. Epic 4 (Quality Evaluation & Insights) sprint planning next 
 - `pnpm dev` — Start Mastra dev server (auto-inits PostgresStore)
 - `pnpm build` — Production build via Mastra CLI
 - `pnpm test` — Run Vitest suite
+- `pnpm typecheck` — TypeScript type checking (no emit)
+- `pnpm eval` — Run eval scorers (`npx tsx src/eval.ts`)
 
 ## Environment
 
 - Copy `.env.example` to `.env` and fill in values
-- Required: `ANTHROPIC_API_KEY`, `DATABASE_URL`
+- Required: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (embeddings only), `DATABASE_URL`
 - Default DB: `postgresql://postgres:postgres@localhost:5432/slidewreck`
 - PostgresStore is mandatory (no in-memory fallback)
+- `OPENAI_API_KEY` is used only for `text-embedding-3-small` (1536-dim, cosine) in pgvector — all LLM inference uses Anthropic
 
 ## Project Structure
 
 - `src/mastra/index.ts` — Single registration point for all agents, workflows, and tools
 - `src/mastra/agents/` — AI agent definitions
 - `src/mastra/workflows/` — Multi-step workflows with gates
+- `src/mastra/rag/` — RAG indexing (best practices KB, user reference materials)
 - `src/mastra/tools/` — Tool functions for agents
 - `src/mastra/schemas/` — Zod validation schemas
-- `src/mastra/config/` — Model tiers and shared configuration
+- `src/mastra/config/` — Model tiers, shared PgVector instance, and configuration
 - `_bmad-output/` — BMAD planning & implementation artifacts (do not edit manually)
 
 ## Testing
