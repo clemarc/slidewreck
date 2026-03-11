@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { WorkflowInputSchema, FORMAT_DURATION_RANGES } from '../workflow-input';
+import { WorkflowInputSchema, FORMAT_DURATION_RANGES, type WorkflowInput } from '../workflow-input';
+
+// Compile-time assertion: WorkflowInput must not have referenceMaterials
+// If someone re-adds the field, this line will cause a TypeScript error.
+type _AssertNoReferenceMaterials = WorkflowInput extends { referenceMaterials: unknown } ? never : true;
+const _typeCheck: _AssertNoReferenceMaterials = true as const;
+void _typeCheck;
 
 describe('WorkflowInputSchema', () => {
   it('should accept valid input with all required fields', () => {
@@ -143,59 +149,16 @@ describe('WorkflowInputSchema', () => {
   });
 });
 
-describe('optional referenceMaterials field', () => {
-  const validBase = {
-    topic: 'Test topic',
-    audienceLevel: 'beginner' as const,
-    format: 'lightning' as const,
-  };
-
-  it('should accept input with referenceMaterials array', () => {
+describe('referenceMaterials removed (AC-A4)', () => {
+  it('should not have referenceMaterials in the parsed type', () => {
     const result = WorkflowInputSchema.safeParse({
-      ...validBase,
-      referenceMaterials: [
-        { type: 'file', path: '/docs/my-blog-post.md' },
-        { type: 'url', path: 'https://example.com/article' },
-      ],
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+      format: 'lightning',
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.referenceMaterials).toHaveLength(2);
-    }
-  });
-
-  it('should accept input without referenceMaterials (backward compatibility)', () => {
-    const result = WorkflowInputSchema.safeParse(validBase);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.referenceMaterials).toBeUndefined();
-    }
-  });
-
-  it('should reject empty path strings in reference materials', () => {
-    const result = WorkflowInputSchema.safeParse({
-      ...validBase,
-      referenceMaterials: [{ type: 'file', path: '' }],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject invalid type values in reference materials', () => {
-    const result = WorkflowInputSchema.safeParse({
-      ...validBase,
-      referenceMaterials: [{ type: 'pdf', path: '/docs/file.pdf' }],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should accept empty referenceMaterials array', () => {
-    const result = WorkflowInputSchema.safeParse({
-      ...validBase,
-      referenceMaterials: [],
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.referenceMaterials).toEqual([]);
+      expect('referenceMaterials' in result.data).toBe(false);
     }
   });
 });

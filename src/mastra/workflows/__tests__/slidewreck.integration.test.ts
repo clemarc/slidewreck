@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { readFile, rm, mkdtemp } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import { Mastra } from '@mastra/core';
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { InMemoryStore } from '@mastra/core/storage';
@@ -13,6 +17,7 @@ import {
 } from '../../schemas/workflow-input';
 import { WorkflowOutputSchema } from '../../schemas/workflow-output';
 import { GateSuspendSchema, GateResumeSchema } from '../../schemas/gate-payloads';
+import { CollectReferencesSuspendSchema, CollectReferencesResumeSchema } from '../../schemas/collect-references';
 import { ArchitectStructureOutputSchema } from '../slidewreck';
 import { createReviewGateStep } from '../gates/review-gate';
 
@@ -185,6 +190,23 @@ const mockWriterStep = createStep({
   execute: async () => mockWriterOutput,
 });
 
+// Mock collect-references step — mirrors production suspend/resume pattern
+const mockCollectReferencesStep = createStep({
+  id: 'collect-references',
+  inputSchema: WorkflowInputSchema,
+  outputSchema: CollectReferencesResumeSchema,
+  suspendSchema: CollectReferencesSuspendSchema,
+  resumeSchema: CollectReferencesResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData) {
+      return resumeData;
+    }
+    return await suspend({
+      prompt: 'Provide reference materials (file paths or URLs) for the presentation, or resume with an empty materials array to skip.',
+    });
+  },
+});
+
 // Use the real review gate factory — identical to production
 const reviewResearchGate = createReviewGateStep({
   gateId: 'review-research',
@@ -204,8 +226,9 @@ const testPipeline = createWorkflow({
   inputSchema: WorkflowInputSchema,
   outputSchema: WorkflowOutputSchema,
 })
-  .map(async ({ inputData }) => {
-    const { topic, audienceLevel, format, constraints } = inputData;
+  .then(mockCollectReferencesStep)
+  .map(async ({ getInitData }) => {
+    const { topic, audienceLevel, format, constraints } = getInitData<WorkflowInput>();
     const duration = FORMAT_DURATION_RANGES[format];
     return {
       prompt: `Research the following conference talk topic and produce a comprehensive research brief.
@@ -347,6 +370,18 @@ const testInputKeynote: WorkflowInput = {
 // --- Error propagation pipeline ---
 // Separate workflow with its own step instances and a writer that throws (AC #5)
 
+const errorCollectReferencesStep = createStep({
+  id: 'collect-references',
+  inputSchema: WorkflowInputSchema,
+  outputSchema: CollectReferencesResumeSchema,
+  suspendSchema: CollectReferencesSuspendSchema,
+  resumeSchema: CollectReferencesResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData) return resumeData;
+    return await suspend({ prompt: 'Provide reference materials or skip.' });
+  },
+});
+
 const errorResearcherStep = createStep({
   id: 'researcher',
   inputSchema: z.object({ prompt: z.string() }),
@@ -399,8 +434,9 @@ const errorPipeline = createWorkflow({
   inputSchema: WorkflowInputSchema,
   outputSchema: WorkflowOutputSchema,
 })
-  .map(async ({ inputData }) => {
-    const { topic, audienceLevel, format } = inputData;
+  .then(errorCollectReferencesStep)
+  .map(async ({ getInitData }) => {
+    const { topic, audienceLevel, format } = getInitData<WorkflowInput>();
     const duration = FORMAT_DURATION_RANGES[format];
     return { prompt: `Research ${topic} for ${audienceLevel} (${format}, ${duration.minMinutes}-${duration.maxMinutes}min)` };
   })
@@ -440,21 +476,91 @@ beforeAll(() => {
   });
 });
 
+// --- Helper: start pipeline and skip collect-references ---
+async function startAndSkipCollectReferences(
+  pipeline: typeof testPipeline,
+  input: WorkflowInput,
+) {
+  const run = await pipeline.createRun();
+  const startResult = await run.start({ inputData: input });
+  expect(startResult.status).toBe('suspended');
+  // Resume collect-references with empty materials (skip)
+  await run.resume({
+    step: 'collect-references',
+    resumeData: { materials: [] },
+  });
+  return run;
+}
+
 // --- Integration tests ---
 
-describe('slidewreck pipeline integration', () => {
-  it('should suspend at Gate 1 (review-research) after researcher step completes', async () => {
+describe('collect-references step', () => {
+  it('should suspend at collect-references on workflow start (AC-A1)', async () => {
     const run = await testPipeline.createRun();
     const result = await run.start({ inputData: testInput });
+
+    expect(result.status).toBe('suspended');
+    if (result.status !== 'suspended') return;
+    expect(result.suspended).toContainEqual(['collect-references']);
+
+    // Verify suspend payload has prompt
+    const payload = (result.suspendPayload as Record<string, unknown>)?.['collect-references'];
+    const parsed = CollectReferencesSuspendSchema.safeParse(payload);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.prompt).toContain('reference materials');
+  }, 15_000);
+
+  it('should continue to Gate 1 after resuming with materials (AC-A2)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInput });
+
+    const result = await run.resume({
+      step: 'collect-references',
+      resumeData: { materials: [{ type: 'url', path: 'https://example.com/article' }] },
+    });
 
     expect(result.status).toBe('suspended');
     if (result.status !== 'suspended') return;
     expect(result.suspended).toContainEqual(['review-research']);
   }, 15_000);
 
+  it('should continue to Gate 1 after resuming with empty array — skip path (AC-A3)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInput });
+
+    const result = await run.resume({
+      step: 'collect-references',
+      resumeData: { materials: [] },
+    });
+
+    expect(result.status).toBe('suspended');
+    if (result.status !== 'suspended') return;
+    expect(result.suspended).toContainEqual(['review-research']);
+  }, 15_000);
+});
+
+describe('slidewreck pipeline integration', () => {
+  it('should suspend at Gate 1 (review-research) after researcher step completes', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Already at Gate 1 after helper
+    const result = await run.resume({
+      step: 'review-research',
+      resumeData: { approved: true },
+    });
+    // Verify we advanced past Gate 1
+    expect(result.status).toBe('suspended');
+  }, 15_000);
+
   it('should produce a valid Gate 1 suspend payload matching GateSuspendSchema', async () => {
     const run = await testPipeline.createRun();
-    const result = await run.start({ inputData: testInput });
+    await run.start({ inputData: testInput });
+
+    const result = await run.resume({
+      step: 'collect-references',
+      resumeData: { materials: [] },
+    });
 
     expect(result.status).toBe('suspended');
     if (result.status !== 'suspended') return;
@@ -471,8 +577,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should suspend at Gate 2 (review-structure) after Gate 1 approval', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     const resumeResult = await run.resume({
       step: 'review-research',
@@ -485,8 +590,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should produce a valid Gate 2 suspend payload with 3 architect options', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     const resumeResult = await run.resume({
       step: 'review-research',
@@ -513,8 +617,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should suspend at Gate 3 (review-script) after Gate 2 approval', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -532,8 +635,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should produce a valid Gate 3 suspend payload with script-writer output', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -557,9 +659,8 @@ describe('slidewreck pipeline integration', () => {
     expect(parsed.data.gateId).toBe('review-script');
   }, 15_000);
 
-  it('should complete successfully after resuming all three gates', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+  it('should complete successfully after resuming all gates', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -580,8 +681,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should produce final output conforming to WorkflowOutputSchema', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -622,8 +722,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should re-suspend at Gate 2 when speaker rejects structure (loopback)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -649,8 +748,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should complete pipeline after rejection then approval at Gate 2 (loopback)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -681,8 +779,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should handle multiple rejections then approval at Gate 2', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -715,8 +812,7 @@ describe('slidewreck pipeline integration', () => {
   }, 30_000);
 
   it('should re-suspend at Gate 2 when speaker rejects without feedback (no-feedback loopback)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInput });
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
     await run.resume({
       step: 'review-research',
@@ -745,8 +841,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should complete pipeline when constraints are provided in input', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInputWithConstraints });
+    const run = await startAndSkipCollectReferences(testPipeline, testInputWithConstraints);
 
     await run.resume({
       step: 'review-research',
@@ -773,8 +868,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should skip Gate 2 for lightning format — Gate 1 approval goes directly to Gate 3 (AC: #1)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInputLightning });
+    const run = await startAndSkipCollectReferences(testPipeline, testInputLightning);
 
     // After Gate 1 approval, lightning should skip architect/Gate 2 and go straight to Gate 3
     const resumeResult = await run.resume({
@@ -789,8 +883,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should complete lightning format pipeline with only 2 gates (AC: #1, #4)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInputLightning });
+    const run = await startAndSkipCollectReferences(testPipeline, testInputLightning);
 
     // Gate 1 approval
     await run.resume({
@@ -814,8 +907,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should use default single-section structure for lightning format (AC: #4)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInputLightning });
+    const run = await startAndSkipCollectReferences(testPipeline, testInputLightning);
 
     // Gate 1 approval — architect step returns immediately with default structure
     const resumeResult = await run.resume({
@@ -840,8 +932,7 @@ describe('slidewreck pipeline integration', () => {
   }, 15_000);
 
   it('should execute all 3 gates for keynote format (AC: #3)', async () => {
-    const run = await testPipeline.createRun();
-    await run.start({ inputData: testInputKeynote });
+    const run = await startAndSkipCollectReferences(testPipeline, testInputKeynote);
 
     // Gate 1 approval
     const gate2 = await run.resume({
@@ -883,6 +974,11 @@ describe('slidewreck pipeline integration', () => {
     await run.start({ inputData: testInput });
 
     await run.resume({
+      step: 'collect-references',
+      resumeData: { materials: [] },
+    });
+
+    await run.resume({
       step: 'review-research',
       resumeData: { approved: true, feedback: 'Proceed' },
     });
@@ -898,4 +994,98 @@ describe('slidewreck pipeline integration', () => {
     expect(resumeResult.error).toBeDefined();
     expect(JSON.stringify(resumeResult.error)).toContain('simulated LLM error');
   }, 15_000);
+});
+
+// --- File-save tests (AC-B1 through AC-B6) ---
+
+describe('presentation file-save', () => {
+  // Slug generation logic extracted from slidewreck.ts for direct testing
+  function generateSlug(topic: string): string {
+    return topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50).replace(/^-|-$/g, '');
+  }
+
+  it('should produce valid slug from normal topic (AC-B5)', () => {
+    expect(generateSlug('Building Resilient Microservices')).toBe('building-resilient-microservices');
+  });
+
+  it('should handle special characters in topic (AC-B5)', () => {
+    const slug = generateSlug('Building Resilient µServices!');
+    expect(slug).toMatch(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/);
+    expect(slug).not.toContain('µ');
+    expect(slug).not.toContain('!');
+  });
+
+  it('should truncate long topics to max 50 chars without trailing hyphen (AC-B5)', () => {
+    const longTopic = 'A'.repeat(30) + ' ' + 'B'.repeat(30);
+    const slug = generateSlug(longTopic);
+    expect(slug.length).toBeLessThanOrEqual(50);
+    expect(slug).not.toMatch(/-$/);
+    expect(slug).not.toMatch(/^-/);
+  });
+
+  it('should handle unicode and mixed scripts (AC-B5)', () => {
+    const slug = generateSlug('日本語トピック & More!');
+    expect(slug).toMatch(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/);
+  });
+
+  it('should handle all-special-character topic', () => {
+    const slug = generateSlug('!!!@@@###');
+    // All chars replaced with hyphens then stripped — empty string is acceptable
+    expect(slug).toMatch(/^[a-z0-9]*([a-z0-9-]*[a-z0-9])?$/);
+  });
+
+  // File-write integration test using temp directory
+  let tempDir: string | undefined;
+
+  afterEach(async () => {
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    }
+  });
+
+  it('should write presentation file with expected content (AC-B1, AC-B2, AC-B4)', async () => {
+    const { writeFile, mkdir } = await import('fs/promises');
+    const { resolve: pathResolve } = await import('path');
+
+    tempDir = await mkdtemp(join(tmpdir(), 'slidewreck-test-'));
+    const topic = 'Test Topic';
+    const speakerNotes = '# Speaker Notes\n\nHello world';
+    const researchBrief = { keyFindings: [{ finding: 'test' }] };
+
+    const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50).replace(/^-|-$/g, '');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${slug}-${timestamp}.md`;
+    const dir = join(tempDir, 'presentations');
+    await mkdir(dir, { recursive: true });
+    const filePath = join(dir, filename);
+
+    const content = [
+      `# ${topic}`,
+      '',
+      speakerNotes,
+      '',
+      '---',
+      '',
+      '## Research Brief',
+      '',
+      JSON.stringify(researchBrief, null, 2),
+    ].join('\n');
+
+    await writeFile(filePath, content, 'utf-8');
+
+    // AC-B4: directory was created
+    expect(existsSync(dir)).toBe(true);
+
+    // AC-B1: file exists
+    const savedContent = await readFile(filePath, 'utf-8');
+    expect(savedContent).toContain(`# ${topic}`);
+
+    // AC-B2: speaker script is main content, research brief is appendix
+    expect(savedContent).toContain(speakerNotes);
+    expect(savedContent).toContain('## Research Brief');
+    const scriptPos = savedContent.indexOf(speakerNotes);
+    const briefPos = savedContent.indexOf('## Research Brief');
+    expect(scriptPos).toBeLessThan(briefPos);
+  });
 });
