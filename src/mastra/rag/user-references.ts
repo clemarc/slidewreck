@@ -88,14 +88,23 @@ export async function indexUserReferences(
   }
 
   if (allChunks.length > 0) {
-    const { embeddings } = await embedMany({
-      values: allChunks.map(c => c.text),
-      model: EMBEDDING_MODEL,
-    });
+    // Batch embedding calls to stay under OpenAI's 300k token-per-request limit.
+    // With ~512-token chunks, 200 chunks per batch ≈ 102k tokens (safe margin).
+    const BATCH_SIZE = 200;
+    const allEmbeddings: number[][] = [];
+
+    for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+      const batch = allChunks.slice(i, i + BATCH_SIZE);
+      const { embeddings } = await embedMany({
+        values: batch.map(c => c.text),
+        model: EMBEDDING_MODEL,
+      });
+      allEmbeddings.push(...embeddings);
+    }
 
     await pgVector.upsert({
       indexName: USER_REFERENCES_INDEX_NAME,
-      vectors: embeddings,
+      vectors: allEmbeddings,
       metadata: allChunks,
     });
   }

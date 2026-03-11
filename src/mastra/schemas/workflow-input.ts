@@ -16,10 +16,6 @@ export const WorkflowInputSchema = z.object({
     .min(1)
     .optional()
     .describe('Free-text speaker constraints for content generation (e.g., "Focus on observability, avoid Kubernetes"). Absent when speaker has no preferences.'),
-  referenceMaterials: z
-    .array(ReferenceMaterialSchema)
-    .optional()
-    .describe('Speaker reference materials (blog posts, docs, code samples) to incorporate. Absent when speaker has no reference materials to provide.'),
 });
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;

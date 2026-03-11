@@ -1,4 +1,6 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
+import { writeFile, mkdir } from 'fs/promises';
+import { resolve, join } from 'path';
 import { z } from 'zod';
 import { researcher, ResearcherOutputSchema } from '../agents/researcher';
 import { pgVector } from '../config/database';
@@ -11,6 +13,7 @@ import {
 } from '../schemas/workflow-input';
 import { WorkflowOutputSchema } from '../schemas/workflow-output';
 import { GateSuspendSchema, GateResumeSchema } from '../schemas/gate-payloads';
+import { CollectReferencesSuspendSchema, CollectReferencesResumeSchema } from '../schemas/collect-references';
 import { createReviewGateStep } from './gates/review-gate';
 import { clearUserReferences, indexUserReferences } from '../rag/user-references';
 import { createBestPracticesIndex, indexBestPractices } from '../rag/best-practices';
@@ -143,17 +146,35 @@ const reviewScriptGate = createReviewGateStep({
   summary: 'Speaker script ready for review',
 });
 
+// Collect references step — suspends to let user provide materials or skip
+const collectReferencesStep = createStep({
+  id: 'collect-references',
+  inputSchema: WorkflowInputSchema,
+  outputSchema: CollectReferencesResumeSchema,
+  suspendSchema: CollectReferencesSuspendSchema,
+  resumeSchema: CollectReferencesResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData) {
+      return resumeData;
+    }
+    return await suspend({
+      prompt: 'Provide reference materials (file paths or URLs) for the presentation, or resume with an empty materials array to skip.',
+    });
+  },
+});
+
 // Workflow composition
 export const slidewreck = createWorkflow({
   id: 'slidewreck',
   inputSchema: WorkflowInputSchema,
   outputSchema: WorkflowOutputSchema,
 })
-  .map(async ({ inputData, getInitData }) => {
-    // Seed RAG knowledge bases before researcher runs (Story 3.2 + 3.3)
-    const initData = getInitData<WorkflowInput>();
+  .then(collectReferencesStep)
+  .map(async ({ inputData, getInitData, getStepResult }) => {
+    // Seed RAG knowledge bases before researcher runs
+    const { materials } = getStepResult(collectReferencesStep);
 
-    // Seed best practices KB (static curated content — Story 3.3, AC: #1)
+    // Seed best practices KB (static curated content)
     try {
       try { await pgVector.deleteIndex({ indexName: BEST_PRACTICES_INDEX_NAME }); } catch { /* may not exist yet */ }
       await createBestPracticesIndex(pgVector);
@@ -163,16 +184,16 @@ export const slidewreck = createWorkflow({
       console.error(`[index-best-practices] Failed, continuing without best practices:`, error);
     }
 
-    // Index speaker reference materials (Story 3.2, AC: #3)
-    if (initData.referenceMaterials?.length) {
+    // Index speaker reference materials from collect-references step (AC-A5)
+    if (materials.length > 0) {
       try {
         await clearUserReferences(pgVector);
-        const result = await indexUserReferences(pgVector, initData.referenceMaterials);
+        const result = await indexUserReferences(pgVector, materials);
         if (result.failed.length > 0) {
           console.warn(`[index-references] Failed to index: ${result.failed.join(', ')}`);
         }
         if (result.indexed > 0) {
-          console.log(`[index-references] Indexed ${result.indexed} chunks from ${initData.referenceMaterials.length - result.failed.length} materials`);
+          console.log(`[index-references] Indexed ${result.indexed} chunks from ${materials.length - result.failed.length} materials`);
         }
       } catch (error) {
         console.error(`[index-references] Indexing failed entirely, continuing without user references:`, error);
@@ -180,8 +201,8 @@ export const slidewreck = createWorkflow({
     }
     return inputData;
   })
-  .map(async ({ inputData }) => {
-    const { topic, audienceLevel, format, constraints } = inputData;
+  .map(async ({ getInitData }) => {
+    const { topic, audienceLevel, format, constraints } = getInitData<WorkflowInput>();
     const duration = getFormatDuration(format);
     return {
       prompt: `Research the following conference talk topic and produce a comprehensive research brief.
@@ -333,6 +354,36 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
       }
     }
 
+    // Auto-save presentation to disk (non-fatal)
+    let outputFilePath: string | undefined;
+    try {
+      const slug = initData.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50).replace(/^-|-$/g, '');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `${slug}-${timestamp}.md`;
+      const dir = resolve('presentations');
+      await mkdir(dir, { recursive: true });
+      const filePath = join(dir, filename);
+
+      const content = [
+        `# ${initData.topic}`,
+        '',
+        speakerScript.speakerNotes,
+        '',
+        '---',
+        '',
+        '## Research Brief',
+        '',
+        JSON.stringify(researchBrief, null, 2),
+      ].join('\n');
+
+      await writeFile(filePath, content, 'utf-8');
+      outputFilePath = filePath;
+      console.log(`[save-presentation] Written to ${outputFilePath}`);
+    } catch (error) {
+      console.error('[save-presentation] Failed to save presentation file:', error);
+      outputFilePath = undefined;
+    }
+
     return {
       researchBrief,
       speakerScript,
@@ -341,6 +392,7 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
         workflowRunId: runId,
         completedAt: new Date().toISOString(),
         input: initData,
+        outputFilePath,
       },
     };
   })
