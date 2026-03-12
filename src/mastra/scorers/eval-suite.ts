@@ -1,14 +1,11 @@
 import type { Scorecard, ScorecardEntry } from '../schemas/scorecard';
-import { hookStrengthScorer } from './hook-strength';
-import { narrativeCoherenceScorer } from './narrative-coherence';
-import { pacingDistributionScorer } from './pacing-distribution';
-import { jargonDensityScorer } from './jargon-density';
+import { mastra } from '../index';
 
-const ALL_SCORERS = [
-  hookStrengthScorer,
-  narrativeCoherenceScorer,
-  pacingDistributionScorer,
-  jargonDensityScorer,
+const SCORER_KEYS = [
+  'hook-strength',
+  'narrative-coherence',
+  'pacing-distribution',
+  'jargon-density',
 ] as const;
 
 /**
@@ -16,21 +13,23 @@ const ALL_SCORERS = [
  * Uses Promise.allSettled for resilience — individual scorer failures don't block others.
  */
 export async function runEvalSuite(script: string): Promise<Scorecard> {
+  const scorers = SCORER_KEYS.map((key) => mastra.getScorer(key));
+
   const results = await Promise.allSettled(
-    ALL_SCORERS.map((scorer) => scorer.run({ output: script })),
+    scorers.map((scorer) => scorer.run({ output: script })),
   );
 
   const entries: ScorecardEntry[] = results.map((result, i) => {
     if (result.status === 'fulfilled') {
       return {
-        scorerId: ALL_SCORERS[i].id,
+        scorerId: scorers[i].id,
         score: result.value.score,
         reason: result.value.reason,
         status: 'success' as const,
       };
     }
     return {
-      scorerId: ALL_SCORERS[i].id,
+      scorerId: scorers[i].id,
       status: 'error' as const,
       error: result.reason instanceof Error ? result.reason.message : String(result.reason),
     };

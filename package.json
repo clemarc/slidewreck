@@ -7,7 +7,7 @@
     "build": "mastra build",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "eval": "npx tsx src/eval.ts"
+    "eval": "npx tsx --env-file=.env src/eval.ts"
   },
   "keywords": [],
   "author": "",

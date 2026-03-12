@@ -1,37 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScorecardSchema } from '../../schemas/scorecard';
 
-// Mock all 4 scorers
-vi.mock('../hook-strength', () => ({
-  hookStrengthScorer: {
-    id: 'hook-strength',
-    run: vi.fn(),
-  },
-}));
-vi.mock('../narrative-coherence', () => ({
-  narrativeCoherenceScorer: {
-    id: 'narrative-coherence',
-    run: vi.fn(),
-  },
-}));
-vi.mock('../pacing-distribution', () => ({
-  pacingDistributionScorer: {
-    id: 'pacing-distribution',
-    run: vi.fn(),
-  },
-}));
-vi.mock('../jargon-density', () => ({
-  jargonDensityScorer: {
-    id: 'jargon-density',
-    run: vi.fn(),
+const mockScorers: Record<string, { id: string; run: ReturnType<typeof vi.fn> }> = {
+  'hook-strength': { id: 'hook-strength', run: vi.fn() },
+  'narrative-coherence': { id: 'narrative-coherence', run: vi.fn() },
+  'pacing-distribution': { id: 'pacing-distribution', run: vi.fn() },
+  'jargon-density': { id: 'jargon-density', run: vi.fn() },
+};
+
+vi.mock('../../index', () => ({
+  mastra: {
+    getScorer: (key: string) => mockScorers[key],
   },
 }));
 
 import { runEvalSuite } from '../eval-suite';
-import { hookStrengthScorer } from '../hook-strength';
-import { narrativeCoherenceScorer } from '../narrative-coherence';
-import { pacingDistributionScorer } from '../pacing-distribution';
-import { jargonDensityScorer } from '../jargon-density';
 
 describe('runEvalSuite', () => {
   beforeEach(() => {
@@ -39,25 +22,25 @@ describe('runEvalSuite', () => {
   });
 
   it('should run all 4 scorers and return a valid scorecard', async () => {
-    vi.mocked(hookStrengthScorer.run).mockResolvedValue({
+    mockScorers['hook-strength'].run.mockResolvedValue({
       score: 4,
       reason: 'Strong hook',
       output: '',
       runId: '1',
     });
-    vi.mocked(narrativeCoherenceScorer.run).mockResolvedValue({
+    mockScorers['narrative-coherence'].run.mockResolvedValue({
       score: 3,
       reason: 'Adequate flow',
       output: '',
       runId: '2',
     });
-    vi.mocked(pacingDistributionScorer.run).mockResolvedValue({
+    mockScorers['pacing-distribution'].run.mockResolvedValue({
       score: 5,
       reason: 'Excellent balance',
       output: '',
       runId: '3',
     });
-    vi.mocked(jargonDensityScorer.run).mockResolvedValue({
+    mockScorers['jargon-density'].run.mockResolvedValue({
       score: 4,
       reason: 'Appropriate',
       output: '',
@@ -75,22 +58,22 @@ describe('runEvalSuite', () => {
   });
 
   it('should handle scorer failure — failed scorer produces error entry, others succeed', async () => {
-    vi.mocked(hookStrengthScorer.run).mockResolvedValue({
+    mockScorers['hook-strength'].run.mockResolvedValue({
       score: 4,
       reason: 'Good',
       output: '',
       runId: '1',
     });
-    vi.mocked(narrativeCoherenceScorer.run).mockRejectedValue(
+    mockScorers['narrative-coherence'].run.mockRejectedValue(
       new Error('LLM request timed out'),
     );
-    vi.mocked(pacingDistributionScorer.run).mockResolvedValue({
+    mockScorers['pacing-distribution'].run.mockResolvedValue({
       score: 3,
       reason: 'Moderate',
       output: '',
       runId: '3',
     });
-    vi.mocked(jargonDensityScorer.run).mockResolvedValue({
+    mockScorers['jargon-density'].run.mockResolvedValue({
       score: 4,
       reason: 'Fine',
       output: '',
@@ -114,25 +97,25 @@ describe('runEvalSuite', () => {
   });
 
   it('should compute overallScore as average of successful scores', async () => {
-    vi.mocked(hookStrengthScorer.run).mockResolvedValue({
+    mockScorers['hook-strength'].run.mockResolvedValue({
       score: 2,
       reason: 'Weak',
       output: '',
       runId: '1',
     });
-    vi.mocked(narrativeCoherenceScorer.run).mockResolvedValue({
+    mockScorers['narrative-coherence'].run.mockResolvedValue({
       score: 4,
       reason: 'Strong',
       output: '',
       runId: '2',
     });
-    vi.mocked(pacingDistributionScorer.run).mockResolvedValue({
+    mockScorers['pacing-distribution'].run.mockResolvedValue({
       score: 3,
       reason: 'Moderate',
       output: '',
       runId: '3',
     });
-    vi.mocked(jargonDensityScorer.run).mockResolvedValue({
+    mockScorers['jargon-density'].run.mockResolvedValue({
       score: 5,
       reason: 'Clean',
       output: '',
@@ -145,10 +128,10 @@ describe('runEvalSuite', () => {
   });
 
   it('should handle all scorers failing — no overallScore', async () => {
-    vi.mocked(hookStrengthScorer.run).mockRejectedValue(new Error('Fail 1'));
-    vi.mocked(narrativeCoherenceScorer.run).mockRejectedValue(new Error('Fail 2'));
-    vi.mocked(pacingDistributionScorer.run).mockRejectedValue(new Error('Fail 3'));
-    vi.mocked(jargonDensityScorer.run).mockRejectedValue(new Error('Fail 4'));
+    mockScorers['hook-strength'].run.mockRejectedValue(new Error('Fail 1'));
+    mockScorers['narrative-coherence'].run.mockRejectedValue(new Error('Fail 2'));
+    mockScorers['pacing-distribution'].run.mockRejectedValue(new Error('Fail 3'));
+    mockScorers['jargon-density'].run.mockRejectedValue(new Error('Fail 4'));
 
     const scorecard = await runEvalSuite('Test');
 
@@ -159,32 +142,14 @@ describe('runEvalSuite', () => {
   });
 
   it('should pass the script to each scorer run', async () => {
-    vi.mocked(hookStrengthScorer.run).mockResolvedValue({
-      score: 3,
-      output: '',
-      runId: '1',
-    });
-    vi.mocked(narrativeCoherenceScorer.run).mockResolvedValue({
-      score: 3,
-      output: '',
-      runId: '2',
-    });
-    vi.mocked(pacingDistributionScorer.run).mockResolvedValue({
-      score: 3,
-      output: '',
-      runId: '3',
-    });
-    vi.mocked(jargonDensityScorer.run).mockResolvedValue({
-      score: 3,
-      output: '',
-      runId: '4',
-    });
+    for (const scorer of Object.values(mockScorers)) {
+      scorer.run.mockResolvedValue({ score: 3, output: '', runId: '1' });
+    }
 
     await runEvalSuite('My talk script here');
 
-    expect(hookStrengthScorer.run).toHaveBeenCalledWith({ output: 'My talk script here' });
-    expect(narrativeCoherenceScorer.run).toHaveBeenCalledWith({ output: 'My talk script here' });
-    expect(pacingDistributionScorer.run).toHaveBeenCalledWith({ output: 'My talk script here' });
-    expect(jargonDensityScorer.run).toHaveBeenCalledWith({ output: 'My talk script here' });
+    for (const scorer of Object.values(mockScorers)) {
+      expect(scorer.run).toHaveBeenCalledWith({ output: 'My talk script here' });
+    }
   });
 });
