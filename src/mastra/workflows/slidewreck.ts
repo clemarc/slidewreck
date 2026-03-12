@@ -12,7 +12,7 @@ import {
   type WorkflowInput,
 } from '../schemas/workflow-input';
 import { WorkflowOutputSchema } from '../schemas/workflow-output';
-import { GateSuspendSchema, GateResumeSchema } from '../schemas/gate-payloads';
+import { GateSuspendSchema, GateResumeSchema, GATE_DECISIONS } from '../schemas/gate-payloads';
 import { CollectReferencesSuspendSchema, CollectReferencesResumeSchema } from '../schemas/collect-references';
 import { createReviewGateStep } from './gates/review-gate';
 import { clearUserReferences, indexUserReferences } from '../rag/user-references';
@@ -47,7 +47,7 @@ const writerStep = createStep(writer, {
 // Output schema for the composite architect + gate step
 // Uses .min(1) instead of ArchitectOutputSchema's .length(3) to allow default single-section structure for lightning format
 export const ArchitectStructureOutputSchema = z.object({
-  decision: z.enum(['approve', 'reject']).describe('Whether the speaker approved or rejected the structure'),
+  decision: z.enum(GATE_DECISIONS).describe('Whether the speaker approved or rejected the structure'),
   feedback: z.string().optional().describe('Speaker feedback on the chosen structure. Absent when no feedback provided.'),
   architectOutput: z.object({
     options: z.array(StructureOptionSchema).min(1).describe('Structure options — 3 from architect agent, or 1 default for lightning format'),
@@ -100,6 +100,11 @@ const architectStructureStep = createStep({
         feedback: resumeData.feedback,
         architectOutput: lastOutput as ArchitectOutput,
       };
+    }
+
+    // Guard: if resumeData exists but decision is unexpected, fail fast
+    if (resumeData && resumeData.decision !== 'reject') {
+      throw new Error(`architect-structure: unexpected decision "${resumeData.decision}" — expected "approve" or "reject"`);
     }
 
     // Build prompt: append rejection feedback if this is a loopback

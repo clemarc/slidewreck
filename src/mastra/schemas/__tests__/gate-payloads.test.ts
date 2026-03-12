@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GateSuspendSchema, GateResumeSchema } from '../gate-payloads';
+import { GateSuspendSchema, GateResumeSchema, GATE_DECISIONS } from '../gate-payloads';
 
 describe('GateSuspendSchema', () => {
   it('should accept a valid suspend payload', () => {
@@ -126,5 +126,14 @@ describe('GateResumeSchema', () => {
       decision: 'maybe',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('should have exactly approve and reject as decision values', () => {
+    expect(GATE_DECISIONS).toEqual(['approve', 'reject']);
+    // Verify schema accepts both and rejects anything else
+    for (const val of GATE_DECISIONS) {
+      expect(GateResumeSchema.safeParse({ decision: val }).success).toBe(true);
+    }
+    expect(GateResumeSchema.safeParse({ decision: 'other' }).success).toBe(false);
   });
 });

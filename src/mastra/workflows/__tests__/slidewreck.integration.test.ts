@@ -405,6 +405,14 @@ const errorArchitectStructureStep = createStep({
     if (resumeData?.decision === 'approve') {
       return { decision: 'approve' as const, feedback: resumeData.feedback, architectOutput: mockArchitectOutput };
     }
+    if (resumeData?.decision === 'reject') {
+      return await suspend({
+        agentId: 'talk-architect',
+        gateId: 'review-structure',
+        output: mockArchitectOutput,
+        summary: 'Structure options ready for review (re-generated)',
+      });
+    }
     return await suspend({
       agentId: 'talk-architect',
       gateId: 'review-structure',
@@ -993,6 +1001,43 @@ describe('slidewreck pipeline integration', () => {
     if (resumeResult.status !== 'failed') return;
     expect(resumeResult.error).toBeDefined();
     expect(JSON.stringify(resumeResult.error)).toContain('simulated LLM error');
+  }, 15_000);
+
+  it('should pass reject decision through Gate 1 (review-research) without loopback', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Reject at Gate 1 — gate is pass-through, so rejection flows to architect step
+    const result = await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'Not enough data' },
+    });
+
+    // Pipeline should still advance past Gate 1 (no loopback at this gate)
+    expect(result.status).toBe('suspended');
+    if (result.status !== 'suspended') return;
+    expect(result.suspended).toContainEqual(['architect-structure']);
+  }, 15_000);
+
+  it('should pass reject decision through Gate 3 (review-script) without loopback', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    await run.resume({
+      step: 'architect-structure',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    // Reject at Gate 3 — gate is pass-through, so rejection completes the pipeline
+    const result = await run.resume({
+      step: 'review-script',
+      resumeData: { decision: 'reject' as const, feedback: 'Needs more polish' },
+    });
+
+    expect(result.status).toBe('success');
   }, 15_000);
 });
 
