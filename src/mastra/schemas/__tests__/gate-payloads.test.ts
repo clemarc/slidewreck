@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GateSuspendSchema, GateResumeSchema } from '../gate-payloads';
+import { GateSuspendSchema, GateResumeSchema, GATE_DECISIONS } from '../gate-payloads';
 
 describe('GateSuspendSchema', () => {
   it('should accept a valid suspend payload', () => {
@@ -92,39 +92,48 @@ describe('GateSuspendSchema', () => {
 describe('GateResumeSchema', () => {
   it('should accept a valid resume payload with all fields', () => {
     const result = GateResumeSchema.safeParse({
-      approved: true,
+      decision: 'approve',
       feedback: 'Focus more on resilience patterns',
       edits: { modified: 'content' },
     });
     expect(result.success).toBe(true);
   });
 
-  it('should accept resume with only approved (feedback and edits optional)', () => {
+  it('should accept resume with only decision (feedback and edits optional)', () => {
     const result = GateResumeSchema.safeParse({
-      approved: false,
+      decision: 'reject',
     });
     expect(result.success).toBe(true);
   });
 
-  it('should accept resume with approved and feedback only', () => {
+  it('should accept resume with decision and feedback only', () => {
     const result = GateResumeSchema.safeParse({
-      approved: true,
+      decision: 'approve',
       feedback: 'Looks good, proceed',
     });
     expect(result.success).toBe(true);
   });
 
-  it('should reject missing approved field', () => {
+  it('should reject missing decision field', () => {
     const result = GateResumeSchema.safeParse({
       feedback: 'Some feedback',
     });
     expect(result.success).toBe(false);
   });
 
-  it('should reject non-boolean approved', () => {
+  it('should reject invalid decision value', () => {
     const result = GateResumeSchema.safeParse({
-      approved: 'yes',
+      decision: 'maybe',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('should have exactly approve and reject as decision values', () => {
+    expect(GATE_DECISIONS).toEqual(['approve', 'reject']);
+    // Verify schema accepts both and rejects anything else
+    for (const val of GATE_DECISIONS) {
+      expect(GateResumeSchema.safeParse({ decision: val }).success).toBe(true);
+    }
+    expect(GateResumeSchema.safeParse({ decision: 'other' }).success).toBe(false);
   });
 });

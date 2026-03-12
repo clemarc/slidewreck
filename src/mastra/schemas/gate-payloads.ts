@@ -17,8 +17,11 @@ export type GateSuspendPayload = z.infer<typeof GateSuspendSchema>;
  * Schema for the data provided when a user resumes a suspended gate.
  * Contains approval decision and optional feedback/edits.
  */
+export const GATE_DECISIONS = ['approve', 'reject'] as const;
+export type GateDecision = (typeof GATE_DECISIONS)[number];
+
 export const GateResumeSchema = z.object({
-  approved: z.boolean().describe('Whether the speaker approved the output'),
+  decision: z.enum(GATE_DECISIONS).describe('Whether the speaker approved or rejected the output'),
   feedback: z.string().optional().describe('Optional freetext guidance for the next generation step'),
   edits: z.unknown().optional().describe('Optional modified output (diff captured at Gate 3 for style learning)'),
 });

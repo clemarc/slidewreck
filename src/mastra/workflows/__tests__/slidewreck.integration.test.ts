@@ -18,7 +18,7 @@ import {
 import { WorkflowOutputSchema } from '../../schemas/workflow-output';
 import { GateSuspendSchema, GateResumeSchema } from '../../schemas/gate-payloads';
 import { CollectReferencesSuspendSchema, CollectReferencesResumeSchema } from '../../schemas/collect-references';
-import { ArchitectStructureOutputSchema } from '../slidewreck';
+import { ArchitectStructureOutputSchema, ResearcherReviewOutputSchema } from '../slidewreck';
 import { createReviewGateStep } from '../gates/review-gate';
 
 // --- Mock fixtures matching agent output schemas exactly ---
@@ -108,11 +108,41 @@ const mockWriterOutput: WriterOutput = {
 // Uses the same transforms, gates, and schemas, but replaces agent steps
 // with mock steps that return fixed data (no LLM calls).
 
-const mockResearcherStep = createStep({
-  id: 'researcher',
+// Mock composite researcher + gate step (mirrors production researcherReviewStep)
+// Handles suspend, re-suspend on rejection, and return on approval.
+const mockResearcherReviewStep = createStep({
+  id: 'review-research',
   inputSchema: z.object({ prompt: z.string() }),
-  outputSchema: ResearcherOutputSchema,
-  execute: async () => mockResearcherOutput,
+  outputSchema: ResearcherReviewOutputSchema,
+  suspendSchema: GateSuspendSchema,
+  resumeSchema: GateResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData?.decision === 'approve') {
+      return {
+        decision: 'approve' as const,
+        feedback: resumeData.feedback,
+        researchBrief: mockResearcherOutput,
+      };
+    }
+
+    if (resumeData?.decision === 'reject') {
+      // Rejection — re-suspend with mock data (simulates researcher re-generation)
+      return await suspend({
+        agentId: 'researcher',
+        gateId: 'review-research',
+        output: mockResearcherOutput,
+        summary: 'Research brief ready for review (re-generated)',
+      });
+    }
+
+    // First run — suspend with mock researcher output
+    return await suspend({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: mockResearcherOutput,
+      summary: 'Research brief ready for review',
+    });
+  },
 });
 
 // Mock composite architect + gate step (mirrors production architectStructureStep)
@@ -130,7 +160,7 @@ const mockArchitectStructureStep = createStep({
     if (initData.format === 'lightning') {
       const duration = FORMAT_DURATION_RANGES.lightning;
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: undefined,
         architectOutput: {
           options: [{
@@ -149,15 +179,15 @@ const mockArchitectStructureStep = createStep({
       };
     }
 
-    if (resumeData?.approved) {
+    if (resumeData?.decision === 'approve') {
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: resumeData.feedback,
         architectOutput: mockArchitectOutput,
       };
     }
 
-    if (resumeData && !resumeData.approved) {
+    if (resumeData?.decision === 'reject') {
       // Rejection — re-suspend with mock data (simulates architect re-generation)
       const summary = mockArchitectOutput.options
         .map((opt, i) => `Option ${i + 1}: ${opt.title} — ${opt.description}`)
@@ -207,13 +237,6 @@ const mockCollectReferencesStep = createStep({
   },
 });
 
-// Use the real review gate factory — identical to production
-const reviewResearchGate = createReviewGateStep({
-  gateId: 'review-research',
-  agentId: 'researcher',
-  summary: 'Research brief ready for review',
-});
-
 const reviewScriptGate = createReviewGateStep({
   gateId: 'review-script',
   agentId: 'script-writer',
@@ -245,15 +268,14 @@ Focus on finding:
 - High-quality sources with URLs for attribution`,
     };
   })
-  .then(mockResearcherStep)
-  .then(reviewResearchGate)
-  .map(async ({ inputData, getStepResult, getInitData }) => {
-    const gateResult = inputData;
-    const researchBrief = getStepResult(mockResearcherStep);
+  .then(mockResearcherReviewStep)
+  .map(async ({ inputData, getInitData }) => {
+    const reviewResult = inputData;
+    const researchBrief = reviewResult.researchBrief;
     const initData = getInitData<WorkflowInput>();
     const { topic, audienceLevel, format, constraints } = initData;
     const duration = FORMAT_DURATION_RANGES[format];
-    const feedback = gateResult.feedback ?? '';
+    const feedback = reviewResult.feedback ?? '';
 
     return {
       prompt: `Design 3 distinct talk structure options based on the following research brief and speaker feedback.
@@ -276,7 +298,7 @@ ${feedback || 'No specific feedback provided.'}
   .then(mockArchitectStructureStep)
   .map(async ({ inputData, getStepResult, getInitData }) => {
     const structureResult = inputData;
-    const researchBrief = getStepResult(mockResearcherStep);
+    const researchBrief = getStepResult(mockResearcherReviewStep).researchBrief;
     const initData = getInitData<WorkflowInput>();
     const { audienceLevel } = initData;
     const format = initData.format;
@@ -324,7 +346,7 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
   .then(mockWriterStep)
   .then(reviewScriptGate)
   .map(async ({ runId, getStepResult, getInitData }) => {
-    const researchBrief = getStepResult(mockResearcherStep);
+    const researchBrief = getStepResult(mockResearcherReviewStep).researchBrief;
     const speakerScript = getStepResult(mockWriterStep);
     const initData = getInitData<WorkflowInput>();
 
@@ -382,17 +404,31 @@ const errorCollectReferencesStep = createStep({
   },
 });
 
-const errorResearcherStep = createStep({
-  id: 'researcher',
+const errorResearcherReviewStep = createStep({
+  id: 'review-research',
   inputSchema: z.object({ prompt: z.string() }),
-  outputSchema: ResearcherOutputSchema,
-  execute: async () => mockResearcherOutput,
-});
-
-const errorResearchGate = createReviewGateStep({
-  gateId: 'review-research',
-  agentId: 'researcher',
-  summary: 'Research brief ready for review',
+  outputSchema: ResearcherReviewOutputSchema,
+  suspendSchema: GateSuspendSchema,
+  resumeSchema: GateResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData?.decision === 'approve') {
+      return { decision: 'approve' as const, feedback: resumeData.feedback, researchBrief: mockResearcherOutput };
+    }
+    if (resumeData?.decision === 'reject') {
+      return await suspend({
+        agentId: 'researcher',
+        gateId: 'review-research',
+        output: mockResearcherOutput,
+        summary: 'Research brief ready for review (re-generated)',
+      });
+    }
+    return await suspend({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: mockResearcherOutput,
+      summary: 'Research brief ready for review',
+    });
+  },
 });
 
 const errorArchitectStructureStep = createStep({
@@ -402,8 +438,16 @@ const errorArchitectStructureStep = createStep({
   suspendSchema: GateSuspendSchema,
   resumeSchema: GateResumeSchema,
   execute: async ({ suspend, resumeData }) => {
-    if (resumeData?.approved) {
-      return { approved: true, feedback: resumeData.feedback, architectOutput: mockArchitectOutput };
+    if (resumeData?.decision === 'approve') {
+      return { decision: 'approve' as const, feedback: resumeData.feedback, architectOutput: mockArchitectOutput };
+    }
+    if (resumeData?.decision === 'reject') {
+      return await suspend({
+        agentId: 'talk-architect',
+        gateId: 'review-structure',
+        output: mockArchitectOutput,
+        summary: 'Structure options ready for review (re-generated)',
+      });
     }
     return await suspend({
       agentId: 'talk-architect',
@@ -440,20 +484,19 @@ const errorPipeline = createWorkflow({
     const duration = FORMAT_DURATION_RANGES[format];
     return { prompt: `Research ${topic} for ${audienceLevel} (${format}, ${duration.minMinutes}-${duration.maxMinutes}min)` };
   })
-  .then(errorResearcherStep)
-  .then(errorResearchGate)
+  .then(errorResearcherReviewStep)
   .map(async ({ inputData }) => {
-    return { prompt: `Design structure. Gate result: ${JSON.stringify(inputData)}` };
+    return { prompt: `Design structure. Review result: ${JSON.stringify(inputData)}` };
   })
   .then(errorArchitectStructureStep)
   .map(async ({ inputData, getStepResult }) => {
-    const researchBrief = getStepResult(errorResearcherStep);
+    const researchBrief = getStepResult(errorResearcherReviewStep).researchBrief;
     return { prompt: `Write script. Research: ${JSON.stringify(researchBrief)}. Structure: ${JSON.stringify(inputData)}` };
   })
   .then(failingWriterStep)
   .then(errorScriptGate)
   .map(async ({ runId, getStepResult, getInitData }) => {
-    const researchBrief = getStepResult(errorResearcherStep);
+    const researchBrief = getStepResult(errorResearcherReviewStep).researchBrief;
     const speakerScript = getStepResult(failingWriterStep);
     const initData = getInitData<WorkflowInput>();
     return {
@@ -547,7 +590,7 @@ describe('slidewreck pipeline integration', () => {
     // Already at Gate 1 after helper
     const result = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
     // Verify we advanced past Gate 1
     expect(result.status).toBe('suspended');
@@ -581,7 +624,7 @@ describe('slidewreck pipeline integration', () => {
 
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -594,7 +637,7 @@ describe('slidewreck pipeline integration', () => {
 
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -621,12 +664,12 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     const resumeResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Option 2, but swap sections 3 and 4' },
+      resumeData: { decision: 'approve' as const, feedback: 'Option 2, but swap sections 3 and 4' },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -639,12 +682,12 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     const resumeResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -664,17 +707,17 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Use Problem-Solution-Demo' },
+      resumeData: { decision: 'approve' as const, feedback: 'Use Problem-Solution-Demo' },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -685,17 +728,17 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -726,13 +769,13 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject at Gate 2
     const rejectResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'Too academic, try more conversational approaches' },
+      resumeData: { decision: 'reject' as const, feedback: 'Too academic, try more conversational approaches' },
     });
 
     expect(rejectResult.status).toBe('suspended');
@@ -752,24 +795,24 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject at Gate 2
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'Too academic' },
+      resumeData: { decision: 'reject' as const, feedback: 'Too academic' },
     });
 
     // Approve on second attempt
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Much better, use option 1' },
+      resumeData: { decision: 'approve' as const, feedback: 'Much better, use option 1' },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -783,29 +826,29 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject twice
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'First rejection' },
+      resumeData: { decision: 'reject' as const, feedback: 'First rejection' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'Second rejection' },
+      resumeData: { decision: 'reject' as const, feedback: 'Second rejection' },
     });
 
     // Approve on third attempt
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Third time is the charm' },
+      resumeData: { decision: 'approve' as const, feedback: 'Third time is the charm' },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -816,13 +859,13 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject at Gate 2 with no feedback
     const rejectResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false },
+      resumeData: { decision: 'reject' as const },
     });
 
     expect(rejectResult.status).toBe('suspended');
@@ -832,7 +875,7 @@ describe('slidewreck pipeline integration', () => {
     // Approve on second attempt — pipeline should continue to Gate 3
     const approveResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(approveResult.status).toBe('suspended');
@@ -845,17 +888,17 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Good' },
+      resumeData: { decision: 'approve' as const, feedback: 'Good' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -873,7 +916,7 @@ describe('slidewreck pipeline integration', () => {
     // After Gate 1 approval, lightning should skip architect/Gate 2 and go straight to Gate 3
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -888,13 +931,13 @@ describe('slidewreck pipeline integration', () => {
     // Gate 1 approval
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Gate 3 approval (Gate 2 skipped)
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -912,7 +955,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 1 approval — architect step returns immediately with default structure
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -937,7 +980,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 1 approval
     const gate2 = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(gate2.status).toBe('suspended');
@@ -947,7 +990,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 2 approval
     const gate3 = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(gate3.status).toBe('suspended');
@@ -957,7 +1000,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 3 approval
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -980,19 +1023,126 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Proceed' },
+      resumeData: { decision: 'approve' as const, feedback: 'Proceed' },
     });
 
     // After approving architect structure, pipeline continues to writer which fails
     const resumeResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('failed');
     if (resumeResult.status !== 'failed') return;
     expect(resumeResult.error).toBeDefined();
     expect(JSON.stringify(resumeResult.error)).toContain('simulated LLM error');
+  }, 15_000);
+
+  it('should re-suspend at Gate 1 when speaker rejects research (loopback)', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Reject at Gate 1
+    const rejectResult = await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'Not enough data' },
+    });
+
+    expect(rejectResult.status).toBe('suspended');
+    if (rejectResult.status !== 'suspended') return;
+    expect(rejectResult.suspended).toContainEqual(['review-research']);
+
+    // Verify re-suspend payload
+    const payload = (rejectResult.suspendPayload as Record<string, unknown>)?.['review-research'];
+    const parsed = GateSuspendSchema.safeParse(payload);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.summary).toContain('re-generated');
+  }, 15_000);
+
+  it('should complete pipeline after rejection then approval at Gate 1 (loopback)', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Reject at Gate 1
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'Need more sources' },
+    });
+
+    // Approve on second attempt
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'approve' as const, feedback: 'Much better' },
+    });
+
+    await run.resume({
+      step: 'architect-structure',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    expect(finalResult.status).toBe('success');
+    if (finalResult.status !== 'success') return;
+    const parsed = WorkflowOutputSchema.safeParse(finalResult.result);
+    expect(parsed.success).toBe(true);
+  }, 15_000);
+
+  it('should handle multiple rejections then approval at Gate 1', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Reject twice
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'First rejection — needs more sources' },
+    });
+
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'Second rejection — still too narrow' },
+    });
+
+    // Approve on third attempt
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'approve' as const, feedback: 'Third time is the charm' },
+    });
+
+    await run.resume({
+      step: 'architect-structure',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    expect(finalResult.status).toBe('success');
+  }, 30_000);
+
+  it('should pass reject decision through Gate 3 (review-script) without loopback', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    await run.resume({
+      step: 'architect-structure',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    // Reject at Gate 3 — gate is pass-through, so rejection completes the pipeline
+    const result = await run.resume({
+      step: 'review-script',
+      resumeData: { decision: 'reject' as const, feedback: 'Needs more polish' },
+    });
+
+    expect(result.status).toBe('success');
   }, 15_000);
 });
 

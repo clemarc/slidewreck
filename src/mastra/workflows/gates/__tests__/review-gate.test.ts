@@ -4,14 +4,14 @@ import { GateSuspendSchema, GateResumeSchema } from '../../../schemas/gate-paylo
 
 describe('createReviewGateStep', () => {
   const config = {
-    gateId: 'review-research',
-    agentId: 'researcher',
-    summary: 'Research brief ready for review',
+    gateId: 'review-script',
+    agentId: 'script-writer',
+    summary: 'Speaker script ready for review',
   };
 
   it('should create a step with the correct gate id', () => {
     const gate = createReviewGateStep(config);
-    expect(gate.id).toBe('review-research');
+    expect(gate.id).toBe('review-script');
   });
 
   it('should have GateSuspendSchema as suspendSchema', () => {
@@ -37,18 +37,18 @@ describe('createReviewGateStep', () => {
   it('should create distinct steps for different gate configs', () => {
     const gate1 = createReviewGateStep(config);
     const gate2 = createReviewGateStep({
-      gateId: 'review-script',
-      agentId: 'script-writer',
-      summary: 'Speaker script ready for review',
+      gateId: 'review-other',
+      agentId: 'other-agent',
+      summary: 'Other output ready for review',
     });
-    expect(gate1.id).toBe('review-research');
-    expect(gate2.id).toBe('review-script');
+    expect(gate1.id).toBe('review-script');
+    expect(gate2.id).toBe('review-other');
   });
 
   it('should call suspend with correct payload on first execution', async () => {
     const gate = createReviewGateStep(config);
-    const mockInput = { keyFindings: [], sources: [] };
-    const suspendSentinel = { approved: false };
+    const mockInput = { sections: [], speakerNotes: '' };
+    const suspendSentinel = { decision: 'reject' as const };
     const mockSuspend = vi.fn().mockResolvedValue(suspendSentinel);
 
     const result = await gate.execute({
@@ -58,21 +58,21 @@ describe('createReviewGateStep', () => {
     } as any);
 
     expect(mockSuspend).toHaveBeenCalledWith({
-      agentId: 'researcher',
-      gateId: 'review-research',
+      agentId: 'script-writer',
+      gateId: 'review-script',
       output: mockInput,
-      summary: 'Research brief ready for review',
+      summary: 'Speaker script ready for review',
     });
     expect(result).toBe(suspendSentinel);
   });
 
   it('should return resumeData when present (resume path)', async () => {
     const gate = createReviewGateStep(config);
-    const resumePayload = { approved: true, feedback: 'Focus on resilience' };
+    const resumePayload = { decision: 'approve' as const, feedback: 'Looks great' };
     const mockSuspend = vi.fn();
 
     const result = await gate.execute({
-      inputData: { keyFindings: [] },
+      inputData: { sections: [] },
       suspend: mockSuspend,
       resumeData: resumePayload,
     } as any);

@@ -12,7 +12,7 @@ import {
   type WorkflowInput,
 } from '../schemas/workflow-input';
 import { WorkflowOutputSchema } from '../schemas/workflow-output';
-import { GateSuspendSchema, GateResumeSchema } from '../schemas/gate-payloads';
+import { GateSuspendSchema, GateResumeSchema, GATE_DECISIONS } from '../schemas/gate-payloads';
 import { CollectReferencesSuspendSchema, CollectReferencesResumeSchema } from '../schemas/collect-references';
 import { createReviewGateStep } from './gates/review-gate';
 import { clearUserReferences, indexUserReferences } from '../rag/user-references';
@@ -33,21 +33,82 @@ function getFormatDuration(format: string) {
   return duration;
 }
 
-// Agent steps with structured output (AC: #1, #7)
-const researcherStep = createStep(researcher, {
-  structuredOutput: { schema: ResearcherOutputSchema },
-  retries: 3,
-});
-
 const writerStep = createStep(writer, {
   structuredOutput: { schema: WriterOutputSchema },
   retries: 3,
 });
 
+// Output schema for the composite researcher + gate step
+export const ResearcherReviewOutputSchema = z.object({
+  decision: z.enum(GATE_DECISIONS).describe('Whether the speaker approved or rejected the research brief'),
+  feedback: z.string().optional().describe('Speaker feedback on the research. Absent when no feedback provided.'),
+  researchBrief: ResearcherOutputSchema.describe('The approved research brief'),
+});
+
+// Composite step: calls researcher agent, suspends for review, handles loopback on rejection
+const researcherReviewStep = createStep({
+  id: 'review-research',
+  inputSchema: z.object({ prompt: z.string() }),
+  outputSchema: ResearcherReviewOutputSchema,
+  suspendSchema: GateSuspendSchema,
+  resumeSchema: GateResumeSchema,
+  execute: async ({ inputData, suspend, resumeData, suspendData }) => {
+    // On approval, return the research brief from the last suspend payload
+    if (resumeData?.decision === 'approve') {
+      const lastOutput = (suspendData as { output?: unknown })?.output;
+      if (!lastOutput) {
+        throw new Error('review-research: suspendData.output missing on approval resume — cannot retrieve research brief');
+      }
+      const researchBrief = ResearcherOutputSchema.parse(lastOutput);
+      return {
+        decision: 'approve' as const,
+        feedback: resumeData.feedback,
+        researchBrief,
+      };
+    }
+
+    // Guard: unreachable if GateResumeSchema Zod validation is enforced by Mastra,
+    // but kept as a defensive check for direct resume calls that bypass schema validation.
+    if (resumeData && resumeData.decision !== 'reject') {
+      throw new Error(`review-research: unexpected decision "${resumeData.decision}" — expected "approve" or "reject"`);
+    }
+
+    // Build prompt: append rejection feedback if this is a loopback
+    let prompt = inputData.prompt;
+    if (resumeData?.decision === 'reject') {
+      if (resumeData.feedback) {
+        prompt += `\n\n## Previous Feedback (speaker rejected)\n${resumeData.feedback}\nProduce a NEW research brief addressing this feedback.`;
+      } else {
+        prompt += `\n\n## Note: Speaker rejected the previous research brief\nProduce a NEW research brief with different focus and sources.`;
+      }
+    }
+
+    // Call researcher agent with structured output
+    const result = await researcher.generate(prompt, {
+      structuredOutput: { schema: ResearcherOutputSchema },
+    });
+    const researchBrief = result.object;
+
+    // Build summary for UI
+    const findingsSummary = researchBrief.keyFindings
+      .slice(0, 3)
+      .map((f, i) => `${i + 1}. ${f.finding}`)
+      .join('\n');
+
+    // Suspend for human review
+    return await suspend({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: researchBrief,
+      summary: `Research brief ready for review:\n${findingsSummary}${researchBrief.keyFindings.length > 3 ? `\n... and ${researchBrief.keyFindings.length - 3} more findings` : ''}`,
+    });
+  },
+});
+
 // Output schema for the composite architect + gate step
 // Uses .min(1) instead of ArchitectOutputSchema's .length(3) to allow default single-section structure for lightning format
 export const ArchitectStructureOutputSchema = z.object({
-  approved: z.boolean().describe('Whether the speaker approved the structure'),
+  decision: z.enum(GATE_DECISIONS).describe('Whether the speaker approved or rejected the structure'),
   feedback: z.string().optional().describe('Speaker feedback on the chosen structure. Absent when no feedback provided.'),
   architectOutput: z.object({
     options: z.array(StructureOptionSchema).min(1).describe('Structure options — 3 from architect agent, or 1 default for lightning format'),
@@ -70,7 +131,7 @@ const architectStructureStep = createStep({
       const duration = FORMAT_DURATION_RANGES.lightning;
       console.log('[architect-structure] Skipped: lightning format — using default single-section structure');
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: undefined,
         architectOutput: {
           options: [{
@@ -90,21 +151,28 @@ const architectStructureStep = createStep({
     }
 
     // On approval, return the architect output from the last suspend payload
-    if (resumeData?.approved) {
+    if (resumeData?.decision === 'approve') {
       const lastOutput = (suspendData as { output?: unknown })?.output;
       if (!lastOutput) {
         throw new Error('architect-structure: suspendData.output missing on approval resume — cannot retrieve architect options');
       }
+      const architectOutput = ArchitectOutputSchema.parse(lastOutput);
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: resumeData.feedback,
-        architectOutput: lastOutput as ArchitectOutput,
+        architectOutput,
       };
+    }
+
+    // Guard: unreachable if GateResumeSchema Zod validation is enforced by Mastra,
+    // but kept as a defensive check for direct resume calls that bypass schema validation.
+    if (resumeData && resumeData.decision !== 'reject') {
+      throw new Error(`architect-structure: unexpected decision "${resumeData.decision}" — expected "approve" or "reject"`);
     }
 
     // Build prompt: append rejection feedback if this is a loopback
     let prompt = inputData.prompt;
-    if (resumeData && !resumeData.approved) {
+    if (resumeData?.decision === 'reject') {
       if (resumeData.feedback) {
         prompt += `\n\n## Previous Feedback (speaker rejected)\n${resumeData.feedback}\nGenerate 3 NEW distinct structure options addressing this feedback.`;
       } else {
@@ -133,13 +201,7 @@ const architectStructureStep = createStep({
   },
 });
 
-// Human gate steps (AC: #2, #4)
-const reviewResearchGate = createReviewGateStep({
-  gateId: 'review-research',
-  agentId: 'researcher',
-  summary: 'Research brief ready for review',
-});
-
+// Human gate step (AC: #2, #4)
 const reviewScriptGate = createReviewGateStep({
   gateId: 'review-script',
   agentId: 'script-writer',
@@ -225,15 +287,14 @@ Focus on finding:
 - Best practices guidance for this talk format and audience level`,
     };
   })
-  .then(researcherStep)
-  .then(reviewResearchGate)
-  .map(async ({ inputData, getStepResult, getInitData }) => {
-    const gateResult = inputData;
-    const researchBrief = getStepResult(researcherStep);
+  .then(researcherReviewStep)
+  .map(async ({ inputData, getInitData }) => {
+    const reviewResult = inputData;
+    const researchBrief = reviewResult.researchBrief;
     const initData = getInitData<WorkflowInput>();
     const { topic, audienceLevel, format, constraints } = initData;
     const duration = getFormatDuration(format);
-    const feedback = gateResult.feedback ?? '';
+    const feedback = reviewResult.feedback ?? '';
 
     return {
       prompt: `Design 3 distinct talk structure options based on the following research brief and speaker feedback.
@@ -256,7 +317,7 @@ ${feedback || 'No specific feedback provided.'}
   .then(architectStructureStep)
   .map(async ({ inputData, getStepResult, getInitData }) => {
     const structureResult = inputData;
-    const researchBrief = getStepResult(researcherStep);
+    const researchBrief = getStepResult(researcherReviewStep).researchBrief;
     const initData = getInitData<WorkflowInput>();
     const { audienceLevel } = initData;
     const format = initData.format;
@@ -304,7 +365,7 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
   .then(writerStep)
   .then(reviewScriptGate)
   .map(async ({ runId, getStepResult, getInitData }) => {
-    const researchBrief = getStepResult(researcherStep);
+    const researchBrief = getStepResult(researcherReviewStep).researchBrief;
     const speakerScript = getStepResult(writerStep);
     const initData = getInitData<WorkflowInput>();
 
