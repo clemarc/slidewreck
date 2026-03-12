@@ -59,14 +59,16 @@ const researcherReviewStep = createStep({
       if (!lastOutput) {
         throw new Error('review-research: suspendData.output missing on approval resume — cannot retrieve research brief');
       }
+      const researchBrief = ResearcherOutputSchema.parse(lastOutput);
       return {
         decision: 'approve' as const,
         feedback: resumeData.feedback,
-        researchBrief: lastOutput as z.infer<typeof ResearcherOutputSchema>,
+        researchBrief,
       };
     }
 
-    // Guard: unexpected decision value
+    // Guard: unreachable if GateResumeSchema Zod validation is enforced by Mastra,
+    // but kept as a defensive check for direct resume calls that bypass schema validation.
     if (resumeData && resumeData.decision !== 'reject') {
       throw new Error(`review-research: unexpected decision "${resumeData.decision}" — expected "approve" or "reject"`);
     }
@@ -154,14 +156,16 @@ const architectStructureStep = createStep({
       if (!lastOutput) {
         throw new Error('architect-structure: suspendData.output missing on approval resume — cannot retrieve architect options');
       }
+      const architectOutput = ArchitectOutputSchema.parse(lastOutput);
       return {
         decision: 'approve' as const,
         feedback: resumeData.feedback,
-        architectOutput: lastOutput as ArchitectOutput,
+        architectOutput,
       };
     }
 
-    // Guard: if resumeData exists but decision is unexpected, fail fast
+    // Guard: unreachable if GateResumeSchema Zod validation is enforced by Mastra,
+    // but kept as a defensive check for direct resume calls that bypass schema validation.
     if (resumeData && resumeData.decision !== 'reject') {
       throw new Error(`architect-structure: unexpected decision "${resumeData.decision}" — expected "approve" or "reject"`);
     }

@@ -414,6 +414,14 @@ const errorResearcherReviewStep = createStep({
     if (resumeData?.decision === 'approve') {
       return { decision: 'approve' as const, feedback: resumeData.feedback, researchBrief: mockResearcherOutput };
     }
+    if (resumeData?.decision === 'reject') {
+      return await suspend({
+        agentId: 'researcher',
+        gateId: 'review-research',
+        output: mockResearcherOutput,
+        summary: 'Research brief ready for review (re-generated)',
+      });
+    }
     return await suspend({
       agentId: 'researcher',
       gateId: 'review-research',
@@ -1081,6 +1089,39 @@ describe('slidewreck pipeline integration', () => {
     const parsed = WorkflowOutputSchema.safeParse(finalResult.result);
     expect(parsed.success).toBe(true);
   }, 15_000);
+
+  it('should handle multiple rejections then approval at Gate 1', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Reject twice
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'First rejection — needs more sources' },
+    });
+
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'Second rejection — still too narrow' },
+    });
+
+    // Approve on third attempt
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'approve' as const, feedback: 'Third time is the charm' },
+    });
+
+    await run.resume({
+      step: 'architect-structure',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    expect(finalResult.status).toBe('success');
+  }, 30_000);
 
   it('should pass reject decision through Gate 3 (review-script) without loopback', async () => {
     const run = await startAndSkipCollectReferences(testPipeline, testInput);
