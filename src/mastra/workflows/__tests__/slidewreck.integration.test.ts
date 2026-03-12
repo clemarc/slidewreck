@@ -18,7 +18,7 @@ import {
 import { WorkflowOutputSchema } from '../../schemas/workflow-output';
 import { GateSuspendSchema, GateResumeSchema } from '../../schemas/gate-payloads';
 import { CollectReferencesSuspendSchema, CollectReferencesResumeSchema } from '../../schemas/collect-references';
-import { ArchitectStructureOutputSchema } from '../slidewreck';
+import { ArchitectStructureOutputSchema, ResearcherReviewOutputSchema } from '../slidewreck';
 import { createReviewGateStep } from '../gates/review-gate';
 
 // --- Mock fixtures matching agent output schemas exactly ---
@@ -108,11 +108,41 @@ const mockWriterOutput: WriterOutput = {
 // Uses the same transforms, gates, and schemas, but replaces agent steps
 // with mock steps that return fixed data (no LLM calls).
 
-const mockResearcherStep = createStep({
-  id: 'researcher',
+// Mock composite researcher + gate step (mirrors production researcherReviewStep)
+// Handles suspend, re-suspend on rejection, and return on approval.
+const mockResearcherReviewStep = createStep({
+  id: 'review-research',
   inputSchema: z.object({ prompt: z.string() }),
-  outputSchema: ResearcherOutputSchema,
-  execute: async () => mockResearcherOutput,
+  outputSchema: ResearcherReviewOutputSchema,
+  suspendSchema: GateSuspendSchema,
+  resumeSchema: GateResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData?.decision === 'approve') {
+      return {
+        decision: 'approve' as const,
+        feedback: resumeData.feedback,
+        researchBrief: mockResearcherOutput,
+      };
+    }
+
+    if (resumeData?.decision === 'reject') {
+      // Rejection — re-suspend with mock data (simulates researcher re-generation)
+      return await suspend({
+        agentId: 'researcher',
+        gateId: 'review-research',
+        output: mockResearcherOutput,
+        summary: 'Research brief ready for review (re-generated)',
+      });
+    }
+
+    // First run — suspend with mock researcher output
+    return await suspend({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: mockResearcherOutput,
+      summary: 'Research brief ready for review',
+    });
+  },
 });
 
 // Mock composite architect + gate step (mirrors production architectStructureStep)
@@ -207,13 +237,6 @@ const mockCollectReferencesStep = createStep({
   },
 });
 
-// Use the real review gate factory — identical to production
-const reviewResearchGate = createReviewGateStep({
-  gateId: 'review-research',
-  agentId: 'researcher',
-  summary: 'Research brief ready for review',
-});
-
 const reviewScriptGate = createReviewGateStep({
   gateId: 'review-script',
   agentId: 'script-writer',
@@ -245,15 +268,14 @@ Focus on finding:
 - High-quality sources with URLs for attribution`,
     };
   })
-  .then(mockResearcherStep)
-  .then(reviewResearchGate)
-  .map(async ({ inputData, getStepResult, getInitData }) => {
-    const gateResult = inputData;
-    const researchBrief = getStepResult(mockResearcherStep);
+  .then(mockResearcherReviewStep)
+  .map(async ({ inputData, getInitData }) => {
+    const reviewResult = inputData;
+    const researchBrief = reviewResult.researchBrief;
     const initData = getInitData<WorkflowInput>();
     const { topic, audienceLevel, format, constraints } = initData;
     const duration = FORMAT_DURATION_RANGES[format];
-    const feedback = gateResult.feedback ?? '';
+    const feedback = reviewResult.feedback ?? '';
 
     return {
       prompt: `Design 3 distinct talk structure options based on the following research brief and speaker feedback.
@@ -276,7 +298,7 @@ ${feedback || 'No specific feedback provided.'}
   .then(mockArchitectStructureStep)
   .map(async ({ inputData, getStepResult, getInitData }) => {
     const structureResult = inputData;
-    const researchBrief = getStepResult(mockResearcherStep);
+    const researchBrief = getStepResult(mockResearcherReviewStep).researchBrief;
     const initData = getInitData<WorkflowInput>();
     const { audienceLevel } = initData;
     const format = initData.format;
@@ -324,7 +346,7 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
   .then(mockWriterStep)
   .then(reviewScriptGate)
   .map(async ({ runId, getStepResult, getInitData }) => {
-    const researchBrief = getStepResult(mockResearcherStep);
+    const researchBrief = getStepResult(mockResearcherReviewStep).researchBrief;
     const speakerScript = getStepResult(mockWriterStep);
     const initData = getInitData<WorkflowInput>();
 
@@ -382,17 +404,23 @@ const errorCollectReferencesStep = createStep({
   },
 });
 
-const errorResearcherStep = createStep({
-  id: 'researcher',
+const errorResearcherReviewStep = createStep({
+  id: 'review-research',
   inputSchema: z.object({ prompt: z.string() }),
-  outputSchema: ResearcherOutputSchema,
-  execute: async () => mockResearcherOutput,
-});
-
-const errorResearchGate = createReviewGateStep({
-  gateId: 'review-research',
-  agentId: 'researcher',
-  summary: 'Research brief ready for review',
+  outputSchema: ResearcherReviewOutputSchema,
+  suspendSchema: GateSuspendSchema,
+  resumeSchema: GateResumeSchema,
+  execute: async ({ suspend, resumeData }) => {
+    if (resumeData?.decision === 'approve') {
+      return { decision: 'approve' as const, feedback: resumeData.feedback, researchBrief: mockResearcherOutput };
+    }
+    return await suspend({
+      agentId: 'researcher',
+      gateId: 'review-research',
+      output: mockResearcherOutput,
+      summary: 'Research brief ready for review',
+    });
+  },
 });
 
 const errorArchitectStructureStep = createStep({
@@ -448,20 +476,19 @@ const errorPipeline = createWorkflow({
     const duration = FORMAT_DURATION_RANGES[format];
     return { prompt: `Research ${topic} for ${audienceLevel} (${format}, ${duration.minMinutes}-${duration.maxMinutes}min)` };
   })
-  .then(errorResearcherStep)
-  .then(errorResearchGate)
+  .then(errorResearcherReviewStep)
   .map(async ({ inputData }) => {
-    return { prompt: `Design structure. Gate result: ${JSON.stringify(inputData)}` };
+    return { prompt: `Design structure. Review result: ${JSON.stringify(inputData)}` };
   })
   .then(errorArchitectStructureStep)
   .map(async ({ inputData, getStepResult }) => {
-    const researchBrief = getStepResult(errorResearcherStep);
+    const researchBrief = getStepResult(errorResearcherReviewStep).researchBrief;
     return { prompt: `Write script. Research: ${JSON.stringify(researchBrief)}. Structure: ${JSON.stringify(inputData)}` };
   })
   .then(failingWriterStep)
   .then(errorScriptGate)
   .map(async ({ runId, getStepResult, getInitData }) => {
-    const researchBrief = getStepResult(errorResearcherStep);
+    const researchBrief = getStepResult(errorResearcherReviewStep).researchBrief;
     const speakerScript = getStepResult(failingWriterStep);
     const initData = getInitData<WorkflowInput>();
     return {
@@ -1003,19 +1030,56 @@ describe('slidewreck pipeline integration', () => {
     expect(JSON.stringify(resumeResult.error)).toContain('simulated LLM error');
   }, 15_000);
 
-  it('should pass reject decision through Gate 1 (review-research) without loopback', async () => {
+  it('should re-suspend at Gate 1 when speaker rejects research (loopback)', async () => {
     const run = await startAndSkipCollectReferences(testPipeline, testInput);
 
-    // Reject at Gate 1 — gate is pass-through, so rejection flows to architect step
-    const result = await run.resume({
+    // Reject at Gate 1
+    const rejectResult = await run.resume({
       step: 'review-research',
       resumeData: { decision: 'reject' as const, feedback: 'Not enough data' },
     });
 
-    // Pipeline should still advance past Gate 1 (no loopback at this gate)
-    expect(result.status).toBe('suspended');
-    if (result.status !== 'suspended') return;
-    expect(result.suspended).toContainEqual(['architect-structure']);
+    expect(rejectResult.status).toBe('suspended');
+    if (rejectResult.status !== 'suspended') return;
+    expect(rejectResult.suspended).toContainEqual(['review-research']);
+
+    // Verify re-suspend payload
+    const payload = (rejectResult.suspendPayload as Record<string, unknown>)?.['review-research'];
+    const parsed = GateSuspendSchema.safeParse(payload);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.summary).toContain('re-generated');
+  }, 15_000);
+
+  it('should complete pipeline after rejection then approval at Gate 1 (loopback)', async () => {
+    const run = await startAndSkipCollectReferences(testPipeline, testInput);
+
+    // Reject at Gate 1
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'reject' as const, feedback: 'Need more sources' },
+    });
+
+    // Approve on second attempt
+    await run.resume({
+      step: 'review-research',
+      resumeData: { decision: 'approve' as const, feedback: 'Much better' },
+    });
+
+    await run.resume({
+      step: 'architect-structure',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    const finalResult = await run.resume({
+      step: 'review-script',
+      resumeData: { decision: 'approve' as const },
+    });
+
+    expect(finalResult.status).toBe('success');
+    if (finalResult.status !== 'success') return;
+    const parsed = WorkflowOutputSchema.safeParse(finalResult.result);
+    expect(parsed.success).toBe(true);
   }, 15_000);
 
   it('should pass reject decision through Gate 3 (review-script) without loopback', async () => {
