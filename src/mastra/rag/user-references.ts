@@ -9,6 +9,12 @@ import { EMBEDDING_DIMENSION } from './best-practices-content';
 export const USER_REFERENCES_INDEX_NAME = 'user_references';
 
 const EMBEDDING_MODEL = openai.embedding('text-embedding-3-small');
+
+/** Strip characters that PostgreSQL jsonb rejects (e.g. \u0000 null bytes). */
+function sanitizeForJsonb(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\u0000/g, '');
+}
 const FETCH_TIMEOUT_MS = 30_000;
 
 /**
@@ -105,7 +111,7 @@ export async function indexUserReferences(
     await pgVector.upsert({
       indexName: USER_REFERENCES_INDEX_NAME,
       vectors: allEmbeddings,
-      metadata: allChunks,
+      metadata: allChunks.map(c => ({ text: sanitizeForJsonb(c.text) })),
     });
   }
 
