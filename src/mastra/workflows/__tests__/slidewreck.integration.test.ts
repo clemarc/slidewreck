@@ -130,7 +130,7 @@ const mockArchitectStructureStep = createStep({
     if (initData.format === 'lightning') {
       const duration = FORMAT_DURATION_RANGES.lightning;
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: undefined,
         architectOutput: {
           options: [{
@@ -149,15 +149,15 @@ const mockArchitectStructureStep = createStep({
       };
     }
 
-    if (resumeData?.approved) {
+    if (resumeData?.decision === 'approve') {
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: resumeData.feedback,
         architectOutput: mockArchitectOutput,
       };
     }
 
-    if (resumeData && !resumeData.approved) {
+    if (resumeData?.decision === 'reject') {
       // Rejection — re-suspend with mock data (simulates architect re-generation)
       const summary = mockArchitectOutput.options
         .map((opt, i) => `Option ${i + 1}: ${opt.title} — ${opt.description}`)
@@ -402,8 +402,8 @@ const errorArchitectStructureStep = createStep({
   suspendSchema: GateSuspendSchema,
   resumeSchema: GateResumeSchema,
   execute: async ({ suspend, resumeData }) => {
-    if (resumeData?.approved) {
-      return { approved: true, feedback: resumeData.feedback, architectOutput: mockArchitectOutput };
+    if (resumeData?.decision === 'approve') {
+      return { decision: 'approve' as const, feedback: resumeData.feedback, architectOutput: mockArchitectOutput };
     }
     return await suspend({
       agentId: 'talk-architect',
@@ -547,7 +547,7 @@ describe('slidewreck pipeline integration', () => {
     // Already at Gate 1 after helper
     const result = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
     // Verify we advanced past Gate 1
     expect(result.status).toBe('suspended');
@@ -581,7 +581,7 @@ describe('slidewreck pipeline integration', () => {
 
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -594,7 +594,7 @@ describe('slidewreck pipeline integration', () => {
 
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -621,12 +621,12 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     const resumeResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Option 2, but swap sections 3 and 4' },
+      resumeData: { decision: 'approve' as const, feedback: 'Option 2, but swap sections 3 and 4' },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -639,12 +639,12 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     const resumeResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -664,17 +664,17 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Use Problem-Solution-Demo' },
+      resumeData: { decision: 'approve' as const, feedback: 'Use Problem-Solution-Demo' },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -685,17 +685,17 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Focus on resilience patterns' },
+      resumeData: { decision: 'approve' as const, feedback: 'Focus on resilience patterns' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -726,13 +726,13 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject at Gate 2
     const rejectResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'Too academic, try more conversational approaches' },
+      resumeData: { decision: 'reject' as const, feedback: 'Too academic, try more conversational approaches' },
     });
 
     expect(rejectResult.status).toBe('suspended');
@@ -752,24 +752,24 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject at Gate 2
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'Too academic' },
+      resumeData: { decision: 'reject' as const, feedback: 'Too academic' },
     });
 
     // Approve on second attempt
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Much better, use option 1' },
+      resumeData: { decision: 'approve' as const, feedback: 'Much better, use option 1' },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -783,29 +783,29 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject twice
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'First rejection' },
+      resumeData: { decision: 'reject' as const, feedback: 'First rejection' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false, feedback: 'Second rejection' },
+      resumeData: { decision: 'reject' as const, feedback: 'Second rejection' },
     });
 
     // Approve on third attempt
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true, feedback: 'Third time is the charm' },
+      resumeData: { decision: 'approve' as const, feedback: 'Third time is the charm' },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -816,13 +816,13 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Reject at Gate 2 with no feedback
     const rejectResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: false },
+      resumeData: { decision: 'reject' as const },
     });
 
     expect(rejectResult.status).toBe('suspended');
@@ -832,7 +832,7 @@ describe('slidewreck pipeline integration', () => {
     // Approve on second attempt — pipeline should continue to Gate 3
     const approveResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(approveResult.status).toBe('suspended');
@@ -845,17 +845,17 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Good' },
+      resumeData: { decision: 'approve' as const, feedback: 'Good' },
     });
 
     await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -873,7 +873,7 @@ describe('slidewreck pipeline integration', () => {
     // After Gate 1 approval, lightning should skip architect/Gate 2 and go straight to Gate 3
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -888,13 +888,13 @@ describe('slidewreck pipeline integration', () => {
     // Gate 1 approval
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     // Gate 3 approval (Gate 2 skipped)
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -912,7 +912,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 1 approval — architect step returns immediately with default structure
     const resumeResult = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('suspended');
@@ -937,7 +937,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 1 approval
     const gate2 = await run.resume({
       step: 'review-research',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(gate2.status).toBe('suspended');
@@ -947,7 +947,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 2 approval
     const gate3 = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(gate3.status).toBe('suspended');
@@ -957,7 +957,7 @@ describe('slidewreck pipeline integration', () => {
     // Gate 3 approval
     const finalResult = await run.resume({
       step: 'review-script',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(finalResult.status).toBe('success');
@@ -980,13 +980,13 @@ describe('slidewreck pipeline integration', () => {
 
     await run.resume({
       step: 'review-research',
-      resumeData: { approved: true, feedback: 'Proceed' },
+      resumeData: { decision: 'approve' as const, feedback: 'Proceed' },
     });
 
     // After approving architect structure, pipeline continues to writer which fails
     const resumeResult = await run.resume({
       step: 'architect-structure',
-      resumeData: { approved: true },
+      resumeData: { decision: 'approve' as const },
     });
 
     expect(resumeResult.status).toBe('failed');

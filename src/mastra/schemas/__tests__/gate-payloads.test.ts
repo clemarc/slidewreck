@@ -92,38 +92,38 @@ describe('GateSuspendSchema', () => {
 describe('GateResumeSchema', () => {
   it('should accept a valid resume payload with all fields', () => {
     const result = GateResumeSchema.safeParse({
-      approved: true,
+      decision: 'approve',
       feedback: 'Focus more on resilience patterns',
       edits: { modified: 'content' },
     });
     expect(result.success).toBe(true);
   });
 
-  it('should accept resume with only approved (feedback and edits optional)', () => {
+  it('should accept resume with only decision (feedback and edits optional)', () => {
     const result = GateResumeSchema.safeParse({
-      approved: false,
+      decision: 'reject',
     });
     expect(result.success).toBe(true);
   });
 
-  it('should accept resume with approved and feedback only', () => {
+  it('should accept resume with decision and feedback only', () => {
     const result = GateResumeSchema.safeParse({
-      approved: true,
+      decision: 'approve',
       feedback: 'Looks good, proceed',
     });
     expect(result.success).toBe(true);
   });
 
-  it('should reject missing approved field', () => {
+  it('should reject missing decision field', () => {
     const result = GateResumeSchema.safeParse({
       feedback: 'Some feedback',
     });
     expect(result.success).toBe(false);
   });
 
-  it('should reject non-boolean approved', () => {
+  it('should reject invalid decision value', () => {
     const result = GateResumeSchema.safeParse({
-      approved: 'yes',
+      decision: 'maybe',
     });
     expect(result.success).toBe(false);
   });

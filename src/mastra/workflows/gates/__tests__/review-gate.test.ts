@@ -48,7 +48,7 @@ describe('createReviewGateStep', () => {
   it('should call suspend with correct payload on first execution', async () => {
     const gate = createReviewGateStep(config);
     const mockInput = { keyFindings: [], sources: [] };
-    const suspendSentinel = { approved: false };
+    const suspendSentinel = { decision: 'reject' as const };
     const mockSuspend = vi.fn().mockResolvedValue(suspendSentinel);
 
     const result = await gate.execute({
@@ -68,7 +68,7 @@ describe('createReviewGateStep', () => {
 
   it('should return resumeData when present (resume path)', async () => {
     const gate = createReviewGateStep(config);
-    const resumePayload = { approved: true, feedback: 'Focus on resilience' };
+    const resumePayload = { decision: 'approve' as const, feedback: 'Focus on resilience' };
     const mockSuspend = vi.fn();
 
     const result = await gate.execute({

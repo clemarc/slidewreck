@@ -47,7 +47,7 @@ const writerStep = createStep(writer, {
 // Output schema for the composite architect + gate step
 // Uses .min(1) instead of ArchitectOutputSchema's .length(3) to allow default single-section structure for lightning format
 export const ArchitectStructureOutputSchema = z.object({
-  approved: z.boolean().describe('Whether the speaker approved the structure'),
+  decision: z.enum(['approve', 'reject']).describe('Whether the speaker approved or rejected the structure'),
   feedback: z.string().optional().describe('Speaker feedback on the chosen structure. Absent when no feedback provided.'),
   architectOutput: z.object({
     options: z.array(StructureOptionSchema).min(1).describe('Structure options — 3 from architect agent, or 1 default for lightning format'),
@@ -70,7 +70,7 @@ const architectStructureStep = createStep({
       const duration = FORMAT_DURATION_RANGES.lightning;
       console.log('[architect-structure] Skipped: lightning format — using default single-section structure');
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: undefined,
         architectOutput: {
           options: [{
@@ -90,13 +90,13 @@ const architectStructureStep = createStep({
     }
 
     // On approval, return the architect output from the last suspend payload
-    if (resumeData?.approved) {
+    if (resumeData?.decision === 'approve') {
       const lastOutput = (suspendData as { output?: unknown })?.output;
       if (!lastOutput) {
         throw new Error('architect-structure: suspendData.output missing on approval resume — cannot retrieve architect options');
       }
       return {
-        approved: true,
+        decision: 'approve' as const,
         feedback: resumeData.feedback,
         architectOutput: lastOutput as ArchitectOutput,
       };
@@ -104,7 +104,7 @@ const architectStructureStep = createStep({
 
     // Build prompt: append rejection feedback if this is a loopback
     let prompt = inputData.prompt;
-    if (resumeData && !resumeData.approved) {
+    if (resumeData?.decision === 'reject') {
       if (resumeData.feedback) {
         prompt += `\n\n## Previous Feedback (speaker rejected)\n${resumeData.feedback}\nGenerate 3 NEW distinct structure options addressing this feedback.`;
       } else {

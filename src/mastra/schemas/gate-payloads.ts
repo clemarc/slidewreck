@@ -18,7 +18,7 @@ export type GateSuspendPayload = z.infer<typeof GateSuspendSchema>;
  * Contains approval decision and optional feedback/edits.
  */
 export const GateResumeSchema = z.object({
-  approved: z.boolean().describe('Whether the speaker approved the output'),
+  decision: z.enum(['approve', 'reject']).describe('Whether the speaker approved or rejected the output'),
   feedback: z.string().optional().describe('Optional freetext guidance for the next generation step'),
   edits: z.unknown().optional().describe('Optional modified output (diff captured at Gate 3 for style learning)'),
 });
