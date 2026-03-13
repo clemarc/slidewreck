@@ -6,6 +6,8 @@ import { researcher, ResearcherOutputSchema } from '../agents/researcher';
 import { pgVector } from '../config/database';
 import { architect, ArchitectOutputSchema, StructureOptionSchema, type ArchitectOutput } from '../agents/talk-architect';
 import { writer, WriterOutputSchema } from '../agents/writer';
+import { designerOutlineStep } from './steps/designer-outline';
+import { designerContentFillStep } from './steps/designer-content-fill';
 import {
   WorkflowInputSchema,
   FORMAT_DURATION_RANGES,
@@ -21,6 +23,10 @@ import { BEST_PRACTICES_INDEX_NAME } from '../rag/best-practices-content';
 import { runEvalSuite } from '../scorers/eval-suite';
 import { saveEvalResults, getScoreHistory } from '../scorers/eval-storage';
 import { analyzeTrends } from '../scorers/eval-trends';
+import { buildSlidesStep } from './steps/build-slides';
+import { renderDiagramsStep } from './steps/render-diagrams';
+import { reviewSlidesStep } from './steps/review-slides';
+import { closeBrowser } from '../config/browser';
 
 // TODO: Mastra .map() erases TPrevSchema to `any`, removing compile-time safety
 // for all inputData fields in map callbacks. Track upstream: @mastra/core .map() types.
@@ -37,6 +43,7 @@ const writerStep = createStep(writer, {
   structuredOutput: { schema: WriterOutputSchema },
   retries: 3,
 });
+
 
 // Output schema for the composite researcher + gate step
 export const ResearcherReviewOutputSchema = z.object({
@@ -364,9 +371,63 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
   })
   .then(writerStep)
   .then(reviewScriptGate)
-  .map(async ({ runId, getStepResult, getInitData }) => {
+  // Prepare designer prompt from writer output + talk structure
+  .map(async ({ getStepResult, getInitData }) => {
+    const speakerScript = getStepResult(writerStep);
+    const structureResult = getStepResult(architectStructureStep);
+    const initData = getInitData<WorkflowInput>();
+
+    return {
+      prompt: `Design a slide deck for the following conference talk.
+
+## Speaker Script
+${speakerScript.speakerNotes}
+
+## Talk Structure
+${JSON.stringify(structureResult.architectOutput, null, 2)}
+
+## Requirements
+- Topic: ${initData.topic}
+- Audience Level: ${initData.audienceLevel}
+- Format: ${initData.format}
+- Follow all design rules (one idea per slide, no bullets, visual-first)
+- Include diagram specifications for technical concepts
+- Return the complete DeckSpec JSON`,
+    };
+  })
+  // Two-phase designer: outline → parallel content fill per slide
+  .then(designerOutlineStep)
+  .then(designerContentFillStep)
+  // Prepare DeckSpec input for review gate
+  .map(async ({ inputData }) => {
+    const deckSpec = inputData;
+    return { deckSpec };
+  })
+  // Gate 4: Optional slide review (AD-3) — auto-approves by default, suspends when reviewSlides=true
+  .then(reviewSlidesStep)
+  // Extract DeckSpec for parallel steps (from gate output)
+  .map(async ({ inputData }) => {
+    const { deckSpec } = inputData;
+    return { deckSpec };
+  })
+  // FR-11: Parallel asset creation — buildSlides + renderDiagrams concurrently
+  .parallel([buildSlidesStep, renderDiagramsStep] as const)
+  // Merge parallel results and clean up browser
+  .map(async ({ inputData, runId, getStepResult, getInitData }) => {
+    const parallelResults = inputData;
+    const buildResult = parallelResults['build-slides'] as { markdown: string };
+    const renderResult = parallelResults['render-diagrams'] as { diagrams: Array<{ slideNumber: number; svg: string }> };
+
+    // Close browser after diagram rendering (non-fatal)
+    try {
+      await closeBrowser();
+    } catch (err) {
+      console.warn('[close-browser] Failed to close browser:', err);
+    }
+
     const researchBrief = getStepResult(researcherReviewStep).researchBrief;
     const speakerScript = getStepResult(writerStep);
+    const deckSpec = getStepResult(designerContentFillStep);
     const initData = getInitData<WorkflowInput>();
 
     // Run eval suite against the approved speaker script (Story 4-3, FR-24)
@@ -425,10 +486,17 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
       await mkdir(dir, { recursive: true });
       const filePath = join(dir, filename);
 
+      // Include slide markdown + diagrams in saved file
       const content = [
         `# ${initData.topic}`,
         '',
         speakerScript.speakerNotes,
+        '',
+        '---',
+        '',
+        '## Slides',
+        '',
+        buildResult.markdown,
         '',
         '---',
         '',
@@ -448,6 +516,9 @@ ${structureResult.feedback || 'No specific feedback provided. Use the approved s
     return {
       researchBrief,
       speakerScript,
+      deckSpec,
+      slideMarkdown: buildResult.markdown,
+      diagrams: renderResult.diagrams,
       scorecard,
       metadata: {
         workflowRunId: runId,

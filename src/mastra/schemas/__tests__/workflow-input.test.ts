@@ -149,6 +149,56 @@ describe('WorkflowInputSchema', () => {
   });
 });
 
+describe('optional reviewSlides field (Story 5-4)', () => {
+  it('should default reviewSlides to false when omitted', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+      format: 'lightning',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.reviewSlides).toBe(false);
+    }
+  });
+
+  it('should accept reviewSlides=true', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+      format: 'lightning',
+      reviewSlides: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.reviewSlides).toBe(true);
+    }
+  });
+
+  it('should accept reviewSlides=false', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+      format: 'lightning',
+      reviewSlides: false,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.reviewSlides).toBe(false);
+    }
+  });
+
+  it('should reject non-boolean reviewSlides', () => {
+    const result = WorkflowInputSchema.safeParse({
+      topic: 'Test topic',
+      audienceLevel: 'beginner',
+      format: 'lightning',
+      reviewSlides: 'yes',
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('referenceMaterials removed (AC-A4)', () => {
   it('should not have referenceMaterials in the parsed type', () => {
     const result = WorkflowInputSchema.safeParse({

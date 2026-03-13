@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ResearcherOutputSchema } from '../agents/researcher';
 import { WriterOutputSchema } from '../agents/writer';
+import { DeckSpecSchema } from './deck-spec';
+import { DiagramResultSchema } from './diagram-result';
 import { WorkflowInputSchema } from './workflow-input';
 import { ScorecardSchema } from './scorecard';
 
@@ -19,6 +21,9 @@ const WorkflowMetadataSchema = z.object({
 export const WorkflowOutputSchema = z.object({
   researchBrief: ResearcherOutputSchema.describe('Research brief produced by the Researcher agent'),
   speakerScript: WriterOutputSchema.describe('Speaker script produced by the Writer agent'),
+  deckSpec: DeckSpecSchema.optional().describe('Slide specifications from the Designer agent. Absent if designer step not yet integrated.'),
+  slideMarkdown: z.string().optional().describe('Rendered slide Markdown. Absent if asset pipeline not yet integrated.'),
+  diagrams: z.array(DiagramResultSchema).optional().describe('Rendered diagram SVGs. Absent if no diagrams in deck.'),
   scorecard: ScorecardSchema.optional().describe('Quality evaluation scorecard. Absent if eval suite was skipped or not yet implemented.'),
   metadata: WorkflowMetadataSchema.describe('Pipeline run metadata'),
 });

@@ -4,6 +4,7 @@ import { PostgresStore } from '@mastra/pg';
 import { researcher } from './agents/researcher';
 import { architect } from './agents/talk-architect';
 import { writer } from './agents/writer';
+import { designer } from './agents/designer';
 import { slidewreck } from './workflows/slidewreck';
 import { pgVector } from './config/database';
 import { hookStrengthScorer } from './scorers/hook-strength';
@@ -35,7 +36,7 @@ export const mastra = new Mastra({
     name: 'slidewreck',
     level: parseLogLevel(process.env.LOG_LEVEL),
   }),
-  agents: { researcher, architect, writer },
+  agents: { researcher, architect, writer, designer },
   workflows: { slidewreck },
   vectors: { pgVector },
   scorers: {

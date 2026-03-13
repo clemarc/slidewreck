@@ -12,6 +12,16 @@ inputDocuments:
 
 This document provides the complete epic and story breakdown for bmad-mastra-presentation (TalkForge), decomposing the requirements from the PRD and Architecture into implementable stories.
 
+### Execution Order
+
+Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics (8, 9) take priority over backend personalization (6, 7). Epics 8 and 9 can run in parallel as they are independent concerns.
+
+**1 → 2 → 3 → 4 → 5 → 8 + 9 (parallel) → 10 → 11 + 12 (parallel) → 13 → 14**
+
+- Epics 8 (CLI rendering) and 9 (FE foundation) are independent and can run in parallel
+- Epics 9 → 10 → 11/12 form the frontend chain (10 and 11 are independent of each other; 12 builds on both)
+- Epics 13–14 (personalization, coaching) are backend Mastra work deferred until the frontend is usable
+
 ## Requirements Inventory
 
 ### Functional Requirements
@@ -28,21 +38,24 @@ This document provides the complete epic and story breakdown for bmad-mastra-pre
 - FR-10: Speaker can reject all proposed talk structures and trigger regeneration with feedback — **Phase 2**
 - FR-11: System can execute asset creation steps concurrently — **Phase 5**
 - FR-12: System can skip inapplicable steps based on talk format — **Phase 2**
-- FR-13: System can produce slide specifications and rendered diagrams; final slide output format TBD — **Phase 5**
+- FR-13: System can produce slide specifications and rendered diagrams; rendered as PDF via CLI and as interactive slides in the web frontend — **Phase 5, 8, 9**
 - FR-14: System can produce a speaker notes document with full script, timing annotations, and markers — **Phase 1**
-- FR-15: System can produce a preparation package with Q&A, timing cheat sheet, contingencies, and social copy — **Phase 7**
+- FR-15: System can produce a preparation package with Q&A, timing cheat sheet, contingencies, and social copy — **Phase 14**
 - FR-16: System can produce an evaluation scorecard with full results — **Phase 4**
-- FR-17: Speaker can download all outputs as a single ZIP or individually — **Phase 7**
-- FR-18: System can generate output without style augmentation on first use (cold start) — **Phase 6**
-- FR-19: System can detect speaker edits at review points and extract style insights — **Phase 6**
-- FR-20: System can persist style insights to long-term storage, organised by category — **Phase 6**
-- FR-21: System can retrieve and apply matching style insights to the generation process on subsequent runs — **Phase 6**
-- FR-22: System can store completed talk metadata for cross-session awareness — **Phase 6**
-- FR-23: Speaker can receive content that avoids repetition from previous talks — **Phase 7**
+- FR-17: Speaker can download all outputs as a single ZIP or individually — **Phase 14**
+- FR-18: System can generate output without style augmentation on first use (cold start) — **Phase 13**
+- FR-19: System can detect speaker edits at review points and extract style insights — **Phase 13**
+- FR-20: System can persist style insights to long-term storage, organised by category — **Phase 13**
+- FR-21: System can retrieve and apply matching style insights to the generation process on subsequent runs — **Phase 13**
+- FR-22: System can store completed talk metadata for cross-session awareness — **Phase 13**
+- FR-23: Speaker can receive content that avoids repetition from previous talks — **Phase 14**
 - FR-24: System can run the full evaluation suite automatically after generation completes — **Phase 4**
 - FR-25: System can store evaluation results for trend analysis — **Phase 4**
 - FR-26: Speaker can view the evaluation scorecard after generation completes — **Phase 4**
 - FR-27: System can run quality assessments on learning effectiveness when at least 3 sessions exist — **Phase 4**
+- FR-28: System can render a DeckSpec JSON to PDF via a standalone CLI script — **Phase 8**
+- FR-29: Speaker can view and navigate generated slides in a web browser — **Phase 9**
+- FR-30: Speaker can trigger the workflow and interact with review gates through a web UI — **Phase 9**
 
 ### NonFunctional Requirements
 
@@ -57,15 +70,15 @@ This document provides the complete epic and story breakdown for bmad-mastra-pre
 - NFR-9: Each generation step shall log: step name, input token count, output token count, latency, and model used. — **Phase 1+**
 - NFR-10: Each step shall log: step name, status (pending/running/paused/complete/failed), and duration. — **Phase 1+**
 - NFR-11: Evaluation results shall be queryable by date range and talk ID. — **Phase 4**
-- NFR-12: Data persistence operations shall log: key, operation (read/write/delete), and payload size. — **Phase 6**
+- NFR-12: Data persistence operations shall log: key, operation (read/write/delete), and payload size. — **Phase 13**
 - NFR-13: Adding a new generation capability shall require only defining its config without modifying core. — **Phase 2+**
 - NFR-14: Adding a new evaluation shall require only adding an entry to the evaluation registry. — **Phase 4**
 - NFR-15: The tool registry shall support adding custom tools without modifying existing capabilities. — **Phase 2+**
 - NFR-16: The slide layout system shall be template-driven so new layouts can be added via config. — **Phase 5**
 - NFR-17: All user data shall be stored locally or in user-controlled infrastructure. — **Phase 1+**
 - NFR-18: No talk content shall be sent to third-party services beyond the configured LLM provider. — **Phase 1+**
-- NFR-19: Users shall be able to view and delete stored personal data. — **Phase 6**
-- NFR-20: Users shall be able to export all their data in a structured, portable format. — **Phase 7**
+- NFR-19: Users shall be able to view and delete stored personal data. — **Phase 13**
+- NFR-20: Users shall be able to export all their data in a structured, portable format. — **Phase 14**
 - NFR-21: The project shall be runnable locally with a single install command followed by a single start command. — **Phase 1**
 - NFR-22: All generation capabilities shall be testable in isolation with mock inputs. — **Phase 1**
 - NFR-23: The evaluation suite shall be runnable independently with a single command. — **Phase 4**
@@ -164,18 +177,45 @@ Speaker can see automated quality scores (hook strength, pacing, jargon density)
 **Mastra capabilities:** Evals (LLM-as-judge, heuristic, trend analysis)
 
 ### Epic 5: Visual Presentation Design
+> **API Spike:** `_bmad-output/implementation-artifacts/spike-epic-5-visual-presentation-design.md` — verified `.parallel()` API, `@mermaid-js/mermaid-cli` programmatic rendering, DeckSpec schema design, parallel testing strategy. Key impact: Story 5.4 review gate must run after parallel block (suspend unsupported in parallel branches).
+
 Speaker can receive slide specifications and rendered Mermaid diagrams alongside the script, with parallel asset generation.
 **FRs covered:** FR-11, FR-13
 **NFR focus:** NFR-3, 4, 16
 **Mastra capabilities:** Parallel workflows, agent addition
 
-### Epic 6: Style Learning & Personalization
+### Epic 8: CLI Deck Rendering
+Standalone npm script that reads a DeckSpec JSON and produces a PDF via Marp. No Mastra dependency.
+**FRs covered:** FR-28
+**Capabilities:** Marp templating, Puppeteer PDF rendering, colour palette theming
+
+### Epic 9: Frontend Foundation & Workflow Trigger
+Next.js app scaffolding, Mastra API client, input form, and workflow trigger.
+**FRs covered:** FR-30
+**Capabilities:** Next.js App Router, typed API client, Zod schema sharing
+
+### Epic 10: Workflow Status & Review Gates
+Live run status, gate content display, review controls, and run history.
+**FRs covered:** FR-30
+**Capabilities:** Polling/SSE, gate interaction UI
+
+### Epic 11: Presentation Viewer
+Interactive slide deck viewer in the browser with layout components and client-side Mermaid.
+**FRs covered:** FR-29
+**Capabilities:** React slide renderer, CSS theming, mermaid.js
+
+### Epic 12: Streaming, Export & Sharing
+Real-time progress streaming, PDF export from browser, shareable URLs, and presenter mode.
+**FRs covered:** FR-28, FR-29
+**Capabilities:** SSE streaming, share tokens, presenter/audience views
+
+### Epic 13: Style Learning & Personalization
 System learns the speaker's writing style through edit diffs at review gates and produces increasingly personalized output over time, with cross-session metadata.
 **FRs covered:** FR-18, FR-19, FR-20, FR-21, FR-22
 **NFR focus:** NFR-12, 19
 **Mastra capabilities:** Memory (persist, retrieve, prompt augmentation)
 
-### Epic 7: Complete Talk Package & Coaching
+### Epic 14: Complete Talk Package & Coaching
 Speaker receives a full prep package (Q&A, timing cheat sheet, contingencies, social copy) with past-talk awareness for repetition avoidance, and can download all outputs.
 **FRs covered:** FR-15, FR-17, FR-23
 **NFR focus:** NFR-20
@@ -828,11 +868,362 @@ So that I can skip review for speed or opt-in for control when needed.
 **When** I add a new layout template via configuration
 **Then** the Designer can use the new layout without modifying existing code (NFR-16)
 
-## Epic 6: Style Learning & Personalization
+## Epic 8: CLI Deck Rendering
+
+Standalone npm script that reads a DeckSpec JSON file from disk and produces a PDF. No Mastra dependency — pure rendering pipeline. Can run in parallel with Epic 9.
+
+### Story 8.1: Marp Templating from DeckSpec
+
+As a developer,
+I want a function that converts a DeckSpec JSON into Marp-flavoured markdown,
+So that the structured slide data can be rendered by the Marp engine.
+
+**Acceptance Criteria:**
+
+**Given** a valid DeckSpec JSON file on disk
+**When** the templating function is invoked with the parsed JSON
+**Then** it produces a Marp markdown string with frontmatter (`marp: true`, theme)
+**And** each slide is separated by `---`
+**And** slide titles, content, and speaker notes (`<!-- notes -->`) are correctly mapped
+**And** the colour palette from the DeckSpec is applied as CSS custom properties in the theme
+
+**Given** a DeckSpec with diagram indicators on certain slides
+**When** the templating function encounters a diagram slide
+**Then** it embeds the pre-rendered diagram image (PNG/SVG path from the DeckSpec) as a markdown image reference
+
+**Given** a DeckSpec with different layout types (title, content, diagram, quote, section-break)
+**When** the templating function processes each slide
+**Then** it applies Marp directives or classes matching the layout type
+
+### Story 8.2: PDF Generation via Marp + Puppeteer
+
+As a speaker,
+I want to run a single command to produce a PDF from a DeckSpec,
+So that I have a portable, shareable presentation file.
+
+**Acceptance Criteria:**
+
+**Given** the npm script `pnpm render-deck` exists
+**When** invoked with a path to a DeckSpec JSON file (e.g., `pnpm render-deck output/my-talk.json`)
+**Then** it reads the file, converts to Marp markdown, and renders a PDF to the same directory as the input file
+**And** the PDF filename matches the input filename with a `.pdf` extension
+
+**Given** `@marp-team/marp-core` and Puppeteer are available as dependencies
+**When** the script renders the Marp markdown
+**Then** it uses the Marp programmatic API (not CLI) to produce the PDF
+
+**Given** the DeckSpec contains Mermaid diagrams
+**When** the PDF is rendered
+**Then** diagrams appear as images (pre-rendered during Epic 5 pipeline, referenced by path in the DeckSpec)
+
+**Given** an invalid or missing file path
+**When** the script is invoked
+**Then** it exits with a non-zero code and a clear error message
+
+### Story 8.3: Custom Marp Theme from Colour Palette
+
+As a speaker,
+I want the PDF to use the colour palette generated for my talk,
+So that the visual output matches the design intent from the pipeline.
+
+**Acceptance Criteria:**
+
+**Given** a DeckSpec with a `colourPalette` field containing primary, secondary, accent, background, and text colours
+**When** the Marp theme is generated
+**Then** it produces a CSS theme that maps palette colours to Marp's theming system
+**And** headings, backgrounds, accent elements, and text use the specified colours
+
+**Given** a DeckSpec without a `colourPalette` field
+**When** the theme is generated
+**Then** it falls back to a sensible default theme without error
+
+## Epic 9: Frontend Foundation & Workflow Trigger
+
+Speaker can start a TalkForge workflow from a web browser. Minimum viable frontend.
+
+### Story 9.1: Next.js Project Scaffolding
+
+As a developer,
+I want a Next.js application scaffolded alongside the existing Mastra backend,
+So that there is a frontend capable of calling the Mastra API.
+
+**Acceptance Criteria:**
+
+**Given** the Next.js app is initialised in a `web/` directory (or as a pnpm workspace)
+**When** I inspect the project structure
+**Then** it uses Next.js App Router, TypeScript, and Tailwind CSS
+**And** `pnpm dev --filter web` starts the frontend on a separate port from Mastra
+
+**Given** the project structure
+**When** I inspect shared types
+**Then** the Zod schemas from `src/mastra/schemas/` are importable by the frontend (shared package or path alias)
+
+### Story 9.2: Mastra API Client
+
+As a developer,
+I want a typed client for the Mastra REST API,
+So that the frontend can trigger workflows and query run status with type safety.
+
+**Acceptance Criteria:**
+
+**Given** the Mastra dev server is running on `localhost:4111`
+**When** the client is configured
+**Then** it exposes typed methods for: trigger workflow, get run status, resume suspended step
+**And** the base URL is configurable via environment variable
+
+**Given** the Mastra API returns an error
+**When** the client receives a non-2xx response
+**Then** it throws a typed error with status code and message
+
+### Story 9.3: Workflow Input Form
+
+As a speaker,
+I want a web form to enter my talk details and start generation,
+So that I can use the system through a browser instead of the API directly.
+
+**Acceptance Criteria:**
+
+**Given** the speaker navigates to the app
+**When** the input form is displayed
+**Then** it includes fields for topic, audience level, talk format, and optional constraints (matching the workflow input schema)
+**And** client-side validation matches the Zod input schema
+
+**Given** the speaker submits valid input
+**When** the workflow is triggered via the Mastra API client
+**Then** the speaker is redirected to a run status page (`/run/:runId`) showing a placeholder status
+
+### Story 9.4: Run Status Page (Placeholder)
+
+As a speaker,
+I want to see that my workflow has started after submitting the form,
+So that I know generation is in progress.
+
+**Acceptance Criteria:**
+
+**Given** the speaker has triggered a workflow
+**When** they land on `/run/:runId`
+**Then** the page displays the run ID and a "Generation in progress" indicator
+**And** when the run completes, a link to the results is shown (results page is a placeholder at this stage)
+
+## Epic 10: Workflow Status & Review Gates
+
+Speaker can track pipeline progress and interact with human review gates in the browser. Full workflow loop without leaving the web UI.
+
+### Story 10.1: Live Run Status Page
+
+As a speaker,
+I want to see which step the pipeline is on in real time,
+So that I know how far along my talk generation is.
+
+**Acceptance Criteria:**
+
+**Given** a workflow run is in progress
+**When** the speaker views `/run/:runId`
+**Then** the page polls (or receives SSE) for step completion updates
+**And** each step is shown with its status (pending, running, complete, failed)
+**And** the currently active step is visually highlighted
+
+**Given** the workflow completes
+**When** all steps are done
+**Then** a link to view the generated deck is displayed
+
+### Story 10.2: Gate Content Display
+
+As a speaker,
+I want to see the content produced at each review gate,
+So that I can make an informed approve/reject decision.
+
+**Acceptance Criteria:**
+
+**Given** the workflow is suspended at a review gate
+**When** the speaker views the run page
+**Then** the gate content is rendered in a readable format:
+- Gate 1 (research): markdown-rendered research summary
+- Gate 2 (structure): talk structure with sections and timing
+- Gate 3 (script): full speaker script with section headings
+- Gate 4 (slides): slide previews (DeckSpec rendered inline)
+
+### Story 10.3: Review Controls
+
+As a speaker,
+I want approve/reject buttons with a feedback field,
+So that I can interact with gates without using the API directly.
+
+**Acceptance Criteria:**
+
+**Given** the workflow is suspended at a gate
+**When** the speaker views the gate content
+**Then** approve and reject buttons are visible
+**And** a textarea for feedback/edits is available
+
+**Given** the speaker approves or rejects with feedback
+**When** they submit the review
+**Then** the workflow is resumed via the Mastra API with the appropriate payload
+**And** the status page updates to show the pipeline continuing
+
+**Given** the speaker rejects at a gate
+**When** the workflow regenerates and suspends again
+**Then** the updated content is displayed for another review round
+
+### Story 10.4: Run History
+
+As a speaker,
+I want to see my past workflow runs,
+So that I can revisit previous talks.
+
+**Acceptance Criteria:**
+
+**Given** the speaker has completed one or more workflow runs
+**When** they navigate to the home or history page
+**Then** past runs are listed with topic, date, format, and status
+**And** each entry links to the run detail page
+
+## Epic 11: Presentation Viewer
+
+Speaker can view generated slides as an interactive deck in the browser. The visual payoff.
+
+### Story 11.1: Slide Renderer Framework
+
+As a speaker,
+I want to navigate through my generated slides in full-screen,
+So that I can preview and present directly from the browser.
+
+**Acceptance Criteria:**
+
+**Given** a DeckSpec is available for a completed run
+**When** the speaker navigates to `/deck/:runId`
+**Then** slides are rendered as full-screen presentation frames
+**And** the speaker can navigate with arrow keys, click, or swipe
+**And** a slide counter shows current position (e.g., "3 / 15")
+
+**Given** the speaker presses Escape or clicks a back button
+**When** exiting the viewer
+**Then** they return to the run detail page
+
+### Story 11.2: Layout Components
+
+As a developer,
+I want a React component per slide layout type,
+So that each slide gets appropriate visual treatment.
+
+**Acceptance Criteria:**
+
+**Given** the DeckSpec defines layout types
+**When** a slide is rendered
+**Then** the correct layout component is selected:
+- `TitleSlide` — large centered title, optional subtitle
+- `ContentSlide` — heading + body text (no bullet walls — follows designer agent rules)
+- `DiagramSlide` — heading + diagram visual, minimal text
+- `QuoteSlide` — large pull-quote with attribution
+- `SectionBreakSlide` — section title, acts as a visual separator
+
+**Given** an unknown layout type
+**When** the slide renders
+**Then** it falls back to `ContentSlide` without error
+
+### Story 11.3: Colour Palette Theming
+
+As a speaker,
+I want slides to use the colour palette generated for my talk,
+So that the visual output matches the design intent.
+
+**Acceptance Criteria:**
+
+**Given** a DeckSpec with a `colourPalette` field
+**When** the deck viewer loads
+**Then** palette colours are injected as CSS custom properties (`--slide-primary`, `--slide-bg`, etc.)
+**And** all layout components consume these properties for headings, backgrounds, accents, and text
+
+**Given** a DeckSpec without a `colourPalette`
+**When** the deck viewer loads
+**Then** a sensible default palette is applied without error
+
+### Story 11.4: Client-Side Mermaid Rendering
+
+As a speaker,
+I want diagrams rendered directly in the browser,
+So that slides with technical visuals load without server-side rendering.
+
+**Acceptance Criteria:**
+
+**Given** a slide with Mermaid syntax in the DeckSpec
+**When** the `DiagramSlide` component mounts
+**Then** it renders the diagram using the `mermaid` JS library client-side
+**And** the diagram respects the current colour palette (mermaid theme configuration)
+
+**Given** invalid Mermaid syntax
+**When** rendering fails
+**Then** an error placeholder is shown on the slide instead of crashing the viewer
+
+## Epic 12: Streaming, Export & Sharing
+
+Real-time experience polish, output portability, and shareable presentation URLs.
+
+### Story 12.1: Streaming Workflow Progress
+
+As a speaker,
+I want to see slides and content appear as they are generated,
+So that the experience feels live and responsive rather than waiting for completion.
+
+**Acceptance Criteria:**
+
+**Given** the workflow is running
+**When** a step completes and produces output
+**Then** the run page updates in real time via SSE (Server-Sent Events) without manual refresh
+**And** partial results (e.g., first few slides) are viewable before the full deck is ready
+
+### Story 12.2: PDF Export from Browser
+
+As a speaker,
+I want to download a PDF of my slides from the browser,
+So that I have a portable file without running the CLI script.
+
+**Acceptance Criteria:**
+
+**Given** the speaker is viewing a completed deck
+**When** they click "Download PDF"
+**Then** a PDF is generated (via server-side Marp render endpoint or browser print-to-PDF)
+**And** the PDF matches the visual styling seen in the browser viewer
+
+### Story 12.3: Shareable Deck URLs
+
+As a speaker,
+I want to share a link to my presentation,
+So that others can view my slides without needing access to my local system.
+
+**Acceptance Criteria:**
+
+**Given** a completed deck
+**When** the speaker clicks "Share"
+**Then** a URL is generated (`/deck/:runId` or a short token-based URL)
+**And** the URL is viewable by anyone with the link (no auth required by default)
+
+**Given** the speaker wants to revoke access
+**When** they disable sharing for a deck
+**Then** the shared URL returns a 404
+
+### Story 12.4: Speaker Notes & Presenter Mode
+
+As a speaker,
+I want a presenter view with speaker notes alongside slide previews,
+So that I can use the browser as my presentation tool.
+
+**Acceptance Criteria:**
+
+**Given** the speaker activates presenter mode
+**When** viewing the deck
+**Then** a dual-pane view shows the current slide, next slide preview, speaker notes, and elapsed time
+**And** the audience-facing view (separate window/tab) stays in sync
+
+**Given** a slide has no speaker notes
+**When** presenter mode is active
+**Then** the notes pane is empty but the layout is not broken
+
+## Epic 13: Style Learning & Personalization
 
 System learns the speaker's writing style through edit diffs at review gates and produces increasingly personalized output over time, with cross-session metadata.
 
-### Story 6.1: Cold Start & Edit Diff Capture at Gate 3
+### Story 13.1: Cold Start & Edit Diff Capture at Gate 3
 
 As a speaker,
 I want the system to work well on my first use and capture my edits for future learning,
@@ -859,7 +1250,7 @@ So that personalization begins immediately from my first interaction.
 **When** I inspect observability logs
 **Then** each operation logs: key, operation type (read/write/delete), and payload size (NFR-12)
 
-### Story 6.2: Style Learner Workflow Step
+### Story 13.2: Style Learner Workflow Step
 
 As a speaker,
 I want the system to extract insights about my writing style from my edits,
@@ -886,7 +1277,7 @@ So that future talks are written more in my voice from the start.
 **When** the Style Learner step is reached
 **Then** the step is skipped without error
 
-### Story 6.3: Style-Augmented Writing
+### Story 13.3: Style-Augmented Writing
 
 As a speaker,
 I want the Writer to incorporate my learned style preferences into its output,
@@ -912,7 +1303,7 @@ So that each subsequent talk requires fewer edits and sounds more like me.
 **Then** more recent insights are weighted higher than older ones
 **And** conflicting insights from different sessions are resolved in favour of the most recent
 
-### Story 6.4: Cross-Session Metadata & Data Management
+### Story 13.4: Cross-Session Metadata & Data Management
 
 As a speaker,
 I want the system to track my talk history and let me manage my personal data,
@@ -941,11 +1332,11 @@ So that future sessions benefit from past context and I maintain control over my
 **When** the next pipeline run executes
 **Then** the Writer reverts to cold start behaviour without error
 
-## Epic 7: Complete Talk Package & Coaching
+## Epic 14: Complete Talk Package & Coaching
 
 Speaker receives a full prep package (Q&A, timing cheat sheet, contingencies, social copy) with past-talk awareness for repetition avoidance, and can download all outputs.
 
-### Story 7.1: Coach Agent & Past Talk RAG Tool
+### Story 14.1: Coach Agent & Past Talk RAG Tool
 
 As a speaker,
 I want the system to be aware of my previous talks and avoid repeating content,
@@ -982,7 +1373,7 @@ So that each new talk brings fresh angles even on familiar topics.
 **When** I open Mastra Studio
 **Then** the Coach agent is visible and testable in the Studio UI
 
-### Story 7.2: Preparation Package Generation
+### Story 14.2: Preparation Package Generation
 
 As a speaker,
 I want a comprehensive prep package covering Q&A, timing, contingencies, and promotion,
@@ -1012,7 +1403,7 @@ So that I am fully prepared for the conference beyond just the talk content.
 **Then** it contains a conference abstract suitable for submission
 **And** social media copy (tweet-length and longer-form) for promoting the talk
 
-### Story 7.3: Output Packaging & Download
+### Story 14.3: Output Packaging & Download
 
 As a speaker,
 I want to download all outputs as a single ZIP or individually, and export my data,

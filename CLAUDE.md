@@ -8,7 +8,7 @@ Mastra agents to build presentations using BMAD and Claude Code. This is a Node.
 
 ## Project Status
 
-Epics 1-3 complete. Epic 4 (Quality Evaluation & Insights) sprint open — evals API spike done, story 4-1 ready for dev.
+Epics 1-4 complete. Epic 5 (Visual Presentation Design) sprint open — API spike done, story 5-1 ready for dev.
 
 ## Development Commands
 

@@ -368,6 +368,7 @@ const testInput: WorkflowInput = {
   topic: 'Building Resilient Microservices',
   audienceLevel: 'intermediate',
   format: 'standard',
+  reviewSlides: false,
 };
 
 const testInputWithConstraints: WorkflowInput = {
@@ -375,18 +376,21 @@ const testInputWithConstraints: WorkflowInput = {
   audienceLevel: 'intermediate',
   format: 'standard',
   constraints: 'Focus on observability, avoid Kubernetes examples',
+  reviewSlides: false,
 };
 
 const testInputLightning: WorkflowInput = {
   topic: 'Building Resilient Microservices',
   audienceLevel: 'intermediate',
   format: 'lightning',
+  reviewSlides: false,
 };
 
 const testInputKeynote: WorkflowInput = {
   topic: 'Building Resilient Microservices',
   audienceLevel: 'advanced',
   format: 'keynote',
+  reviewSlides: false,
 };
 
 // --- Error propagation pipeline ---

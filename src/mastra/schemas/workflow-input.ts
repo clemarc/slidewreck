@@ -16,6 +16,10 @@ export const WorkflowInputSchema = z.object({
     .min(1)
     .optional()
     .describe('Free-text speaker constraints for content generation (e.g., "Focus on observability, avoid Kubernetes"). Absent when speaker has no preferences.'),
+  reviewSlides: z
+    .boolean()
+    .default(false)
+    .describe('If true, workflow suspends at Gate 4 (review-slides) for manual DeckSpec review. Default: false (auto-approve).'),
 });
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;

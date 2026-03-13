@@ -1,12 +1,12 @@
-# Sprint: Epic 4 — Quality Evaluation & Insights
-# generated: 2026-03-04
+# Sprint: Epic 5 — Visual Presentation Design
+# generated: 2026-03-12
 # project: bmad-mastra-presentation
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
-# api_spike: _bmad-output/implementation-artifacts/spike-mastra-evals-api.md
+# api_spike: _bmad-output/implementation-artifacts/spike-epic-5-visual-presentation-design.md
 #
 # PRIOR SPRINTS:
-#   Epic 1 (done), Epic 2 (done), Epic 3 (done)
+#   Epic 1 (done), Epic 2 (done), Epic 3 (done), Epic 4 (done)
 #
 # STATUS DEFINITIONS:
 # ==================
@@ -16,14 +16,29 @@
 #
 # SPRINT CADENCE:
 #   Stories -> Retrospective -> Spike for next epic -> Close sprint
+#
+# RETRO ACTION ITEMS (carried — all low priority):
+#   E3-3: Research embedding provider alternatives (Winston) — low
+#   E3-5: Investigate pgvector upsert-by-ID (Winston) — low
+#   E4-1: Extract reusable workflow patterns (Bob + Clément) — low
+#   E4-2: Monitor getSteps() fix in @mastra/core (Charlie) — low
+#   E4-3: Monitor ListScoresResponse.scores type fix (Charlie) — low
+#   E4-4: Monitor dynamic import('../index') pattern (Charlie) — low
+#
+# SPIKE FINDINGS (key impacts on stories):
+#   - Story 5.4: Review gate must run AFTER .parallel(), not inside (suspend/resume unsupported in parallel)
+#   - Story 5.3: Error handling via try/catch inside each step's execute (no built-in per-branch recovery)
+#   - Story 5.2: Use renderMermaid() programmatic API, not CLI binary. Needs puppeteer@^23 peer dep.
+#   - .parallel() requires `as const` for tuple type inference
+#   - @mermaid-js/mermaid-cli is ESM-only — verify import compatibility before Story 5.2
 
 sprint_status:
   # Stories
-  4-1-eval-scorers-hook-strength-narrative-coherence: done
-  4-2-eval-scorers-pacing-distribution-jargon-density: done
-  4-3-automated-eval-suite-scorecard: done
-  4-4-eval-result-storage-trend-analysis: done
+  5-1-designer-agent-slide-specification-tools: done
+  5-2-mermaid-diagram-generation-rendering: done
+  5-3-parallel-asset-creation-pipeline: done
+  5-4-optional-slide-review-gate: done
 
   # Sprint closing tasks
-  epic-4-retrospective: optional
-  spike-epic-5-visual-presentation-design: pending
+  epic-5-retrospective: optional
+  spike-epic-6-style-learning-personalization: pending
