@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { getBrowser, closeBrowser } from '../browser';
+import { hasChromium } from '../../__tests__/has-chromium';
 
 afterEach(async () => {
   await closeBrowser();
 });
 
-describe('browser singleton', () => {
+describe.skipIf(!hasChromium)('browser singleton', () => {
   it('getBrowser returns a connected browser', async () => {
     const browser = await getBrowser();
     expect(browser.connected).toBe(true);

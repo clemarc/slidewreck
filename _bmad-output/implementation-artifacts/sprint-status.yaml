@@ -17,13 +17,17 @@
 # SPRINT CADENCE:
 #   Stories -> Retrospective -> Spike for next epic -> Close sprint
 #
-# RETRO ACTION ITEMS (carried — all low priority):
-#   E3-3: Research embedding provider alternatives (Winston) — low
-#   E3-5: Investigate pgvector upsert-by-ID (Winston) — low
-#   E4-1: Extract reusable workflow patterns (Bob + Clément) — low
-#   E4-2: Monitor getSteps() fix in @mastra/core (Charlie) — low
-#   E4-3: Monitor ListScoresResponse.scores type fix (Charlie) — low
-#   E4-4: Monitor dynamic import('../index') pattern (Charlie) — low
+# RETRO ACTION ITEMS — Barry quick-flow triage 2026-03-13:
+#   E3-3: Research embedding provider alternatives — DROPPED (research in architecture.md; no functional issue)
+#   E3-5: Investigate pgvector upsert-by-ID — RESOLVED (pattern documented in architecture.md)
+#   E4-1: Extract reusable workflow patterns — CARRY (low ROI until 3rd similar gate)
+#   E4-2: Monitor getSteps() fix in @mastra/core — CARRY (still broken in @mastra/core@1.13.1)
+#   E4-3: Monitor ListScoresResponse.scores type fix — RESOLVED (fixed in @mastra/core@1.13.1; workaround removal pending)
+#   E4-4: Monitor dynamic import('../index') pattern — RESOLVED (correct pattern for circular deps)
+#   E5-1: Spike checklist: context payload size — DONE
+#   E5-2: Spike checklist: structured output schema compat — DONE
+#   E5-3: Barry quick-flow triage — DONE (this pass)
+#   E5-4: CI Chromium for puppeteer tests — DONE
 #
 # SPIKE FINDINGS (key impacts on stories):
 #   - Story 5.4: Review gate must run AFTER .parallel(), not inside (suspend/resume unsupported in parallel)
@@ -40,5 +44,6 @@ sprint_status:
   5-4-optional-slide-review-gate: done
 
   # Sprint closing tasks
-  epic-5-retrospective: optional
-  spike-epic-6-style-learning-personalization: pending
+  epic-5-retrospective: done
+  spike-epic-8-cli-deck-rendering: pending
+  spike-epic-9-frontend-architecture: done   # Next.js 16 + pnpm workspace decision — documented in architecture.md

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateTiming } from '../estimate-timing';
+import { validateSchema } from '../../__tests__/schema-helpers';
 
 // Helper to call tool execute
 async function execute(input: {
@@ -125,58 +126,47 @@ describe('estimateTiming tool', () => {
   });
 
   describe('input schema validation', () => {
+    const schema = estimateTiming.inputSchema!;
+
     it('should reject negative word counts', () => {
-      const schema = estimateTiming.inputSchema!;
-      const result = schema.safeParse({
+      expect(validateSchema(schema, {
         sections: [{ title: 'Bad', contentWordCount: -10 }],
         format: 'standard',
-      });
-      expect(result.success).toBe(false);
+      }).success).toBe(false);
     });
 
     it('should reject invalid format values', () => {
-      const schema = estimateTiming.inputSchema!;
-      const result = schema.safeParse({
+      expect(validateSchema(schema, {
         sections: [{ title: 'Test', contentWordCount: 100 }],
         format: 'invalid',
-      });
-      expect(result.success).toBe(false);
+      }).success).toBe(false);
     });
 
     it('should reject empty section titles', () => {
-      const schema = estimateTiming.inputSchema!;
-      const result = schema.safeParse({
+      expect(validateSchema(schema, {
         sections: [{ title: '', contentWordCount: 100 }],
         format: 'standard',
-      });
-      expect(result.success).toBe(false);
+      }).success).toBe(false);
     });
 
     it('should accept valid input with optional wordsPerMinute', () => {
-      const schema = estimateTiming.inputSchema!;
-      const result = schema.safeParse({
+      expect(validateSchema(schema, {
         sections: [{ title: 'Test', contentWordCount: 100 }],
         format: 'standard',
-      });
-      expect(result.success).toBe(true);
+      }).success).toBe(true);
     });
 
     it('should reject zero or negative wordsPerMinute', () => {
-      const schema = estimateTiming.inputSchema!;
-      expect(
-        schema.safeParse({
-          sections: [{ title: 'Test', contentWordCount: 100 }],
-          format: 'standard',
-          wordsPerMinute: 0,
-        }).success,
-      ).toBe(false);
-      expect(
-        schema.safeParse({
-          sections: [{ title: 'Test', contentWordCount: 100 }],
-          format: 'standard',
-          wordsPerMinute: -50,
-        }).success,
-      ).toBe(false);
+      expect(validateSchema(schema, {
+        sections: [{ title: 'Test', contentWordCount: 100 }],
+        format: 'standard',
+        wordsPerMinute: 0,
+      }).success).toBe(false);
+      expect(validateSchema(schema, {
+        sections: [{ title: 'Test', contentWordCount: 100 }],
+        format: 'standard',
+        wordsPerMinute: -50,
+      }).success).toBe(false);
     });
   });
 });

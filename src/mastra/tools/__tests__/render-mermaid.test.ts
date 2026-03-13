@@ -1,6 +1,8 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { renderMermaidTool } from '../render-mermaid';
 import { closeBrowser } from '../../config/browser';
+import { hasChromium } from '../../__tests__/has-chromium';
+import { validateSchema } from '../../__tests__/schema-helpers';
 
 afterAll(async () => {
   await closeBrowser();
@@ -23,21 +25,22 @@ describe('renderMermaid tool', () => {
     expect(renderMermaidTool.outputSchema).toBeDefined();
   });
 
-  it('should render valid Mermaid to SVG', async () => {
-    const result = await render('graph TD\n  A[Start] --> B[End]');
-    expect(result.svg).toContain('<svg');
-    expect(result.svg).toContain('Start');
-    expect(result.error).toBeUndefined();
-  }, 15000);
+  describe.skipIf(!hasChromium)('browser-dependent', () => {
+    it('should render valid Mermaid to SVG', async () => {
+      const result = await render('graph TD\n  A[Start] --> B[End]');
+      expect(result.svg).toContain('<svg');
+      expect(result.svg).toContain('Start');
+      expect(result.error).toBeUndefined();
+    }, 15000);
 
-  it('should return error for invalid syntax', async () => {
-    const result = await render('this is not valid mermaid syntax at all %%%');
-    expect(result.error).toBeDefined();
-    expect(result.svg).toBeUndefined();
-  }, 15000);
+    it('should return error for invalid syntax', async () => {
+      const result = await render('this is not valid mermaid syntax at all %%%');
+      expect(result.error).toBeDefined();
+      expect(result.svg).toBeUndefined();
+    }, 15000);
+  });
 
   it('should reject empty mermaidSyntax via schema', () => {
-    const schema = renderMermaidTool.inputSchema!;
-    expect(schema.safeParse({ mermaidSyntax: '' }).success).toBe(false);
+    expect(validateSchema(renderMermaidTool.inputSchema!, { mermaidSyntax: '' }).success).toBe(false);
   });
 });

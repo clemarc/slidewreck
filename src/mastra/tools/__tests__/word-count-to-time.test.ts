@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { wordCountToTime } from '../word-count-to-time';
+import { validateSchema } from '../../__tests__/schema-helpers';
 
 // Helper to call tool execute with proper context
 async function execute(input: { text: string; wordsPerMinute?: number }) {
@@ -62,8 +63,8 @@ describe('wordCountToTime tool', () => {
 
   it('should reject wordsPerMinute of 0 or negative via schema', () => {
     const schema = wordCountToTime.inputSchema!;
-    expect(schema.safeParse({ text: 'hello', wordsPerMinute: 0 }).success).toBe(false);
-    expect(schema.safeParse({ text: 'hello', wordsPerMinute: -10 }).success).toBe(false);
-    expect(schema.safeParse({ text: 'hello', wordsPerMinute: 1 }).success).toBe(true);
+    expect(validateSchema(schema, { text: 'hello', wordsPerMinute: 0 }).success).toBe(false);
+    expect(validateSchema(schema, { text: 'hello', wordsPerMinute: -10 }).success).toBe(false);
+    expect(validateSchema(schema, { text: 'hello', wordsPerMinute: 1 }).success).toBe(true);
   });
 });

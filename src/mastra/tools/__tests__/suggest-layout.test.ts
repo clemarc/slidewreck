@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { suggestLayout } from '../suggest-layout';
+import { validateSchema } from '../../__tests__/schema-helpers';
 
 async function suggest(content: string, slidePosition?: 'first' | 'last' | 'middle') {
   const result = await suggestLayout.execute!(
@@ -59,8 +60,7 @@ describe('suggestLayout tool', () => {
   });
 
   it('should reject empty content via schema', () => {
-    const schema = suggestLayout.inputSchema!;
-    expect(schema.safeParse({ content: '', slidePosition: 'middle' }).success).toBe(false);
+    expect(validateSchema(suggestLayout.inputSchema!, { content: '', slidePosition: 'middle' }).success).toBe(false);
   });
 
   it('should return "content" as default for generic text', async () => {

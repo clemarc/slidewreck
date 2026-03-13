@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateColourPalette } from '../generate-colour-palette';
 import { ColourPaletteSchema } from '../../schemas/deck-spec';
+import { validateSchema } from '../../__tests__/schema-helpers';
 
 async function generate(topic: string, tone: string) {
   const result = await generateColourPalette.execute!(
@@ -58,12 +59,10 @@ describe('generateColourPalette tool', () => {
   });
 
   it('should reject empty topic via schema', () => {
-    const schema = generateColourPalette.inputSchema!;
-    expect(schema.safeParse({ topic: '', tone: 'professional' }).success).toBe(false);
+    expect(validateSchema(generateColourPalette.inputSchema!, { topic: '', tone: 'professional' }).success).toBe(false);
   });
 
   it('should reject empty tone via schema', () => {
-    const schema = generateColourPalette.inputSchema!;
-    expect(schema.safeParse({ topic: 'AI', tone: '' }).success).toBe(false);
+    expect(validateSchema(generateColourPalette.inputSchema!, { topic: 'AI', tone: '' }).success).toBe(false);
   });
 });

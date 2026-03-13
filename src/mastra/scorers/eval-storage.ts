@@ -6,6 +6,7 @@ interface SaveContext {
   runId: string;
   entityId: string;
   topic: string;
+  output?: unknown;
 }
 
 /**
@@ -27,6 +28,7 @@ export async function saveEvalResults(
       score: entry.score,
       reason: entry.reason,
       source: 'LIVE',
+      output: context.output ?? '',
       scorer: { id: entry.scorerId },
       entity: { type: 'talk', topic: context.topic },
       entityType: 'WORKFLOW',

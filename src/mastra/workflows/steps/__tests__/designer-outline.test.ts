@@ -76,13 +76,15 @@ Hello world, this is the talk.
     } as never);
 
     expect(mockDesigner.generate).toHaveBeenCalledTimes(1);
-    const callArgs = mockDesigner.generate.mock.calls[0];
-    expect(callArgs[0]).toContain('IMPORTANT: In this phase, produce ONLY the deck outline');
-    expect(callArgs[0]).toContain('Do NOT write slide content yet');
-    expect(callArgs[1]).toEqual({
-      structuredOutput: { schema: DeckOutlineSchema },
-      providerOptions: ANTHROPIC_STRUCTURED_OUTPUT_OPTIONS,
-    });
+    expect(mockDesigner.generate).toHaveBeenCalledWith(
+      expect.stringContaining('IMPORTANT: In this phase, produce ONLY the deck outline'),
+      expect.objectContaining({
+        structuredOutput: { schema: DeckOutlineSchema },
+        providerOptions: ANTHROPIC_STRUCTURED_OUTPUT_OPTIONS,
+      }),
+    );
+    const sentPrompt = mockDesigner.generate.mock.calls[0]![0] as string;
+    expect(sentPrompt).toContain('Do NOT write slide content yet');
   });
 
   it('should return deckOutline and extracted speakerScript', async () => {

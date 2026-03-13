@@ -452,6 +452,7 @@ ${JSON.stringify(structureResult.architectOutput, null, 2)}
             runId,
             entityId,
             topic: initData.topic,
+            output: speakerScript.speakerNotes,
           });
 
           // Build history for trend analysis
@@ -462,7 +463,7 @@ ${JSON.stringify(structureResult.architectOutput, null, 2)}
           for (const scorerId of scorerIds) {
             const result = await getScoreHistory(scoresStorage, scorerId);
             if (result.scores) {
-              history[scorerId] = result.scores.map((s: { score: number }) => s.score);
+              history[scorerId] = result.scores.map((s) => s.score);
             }
           }
 

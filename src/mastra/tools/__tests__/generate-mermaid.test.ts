@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateMermaid } from '../generate-mermaid';
+import { validateSchema } from '../../__tests__/schema-helpers';
 
 type DiagramType = 'flowchart' | 'sequence' | 'class' | 'state' | 'er' | 'gantt' | 'pie' | 'mindmap';
 
@@ -48,12 +49,10 @@ describe('generateMermaid tool', () => {
   });
 
   it('should reject empty description via schema', () => {
-    const schema = generateMermaid.inputSchema!;
-    expect(schema.safeParse({ description: '', diagramType: 'flowchart' }).success).toBe(false);
+    expect(validateSchema(generateMermaid.inputSchema!, { description: '', diagramType: 'flowchart' }).success).toBe(false);
   });
 
   it('should reject empty diagramType via schema', () => {
-    const schema = generateMermaid.inputSchema!;
-    expect(schema.safeParse({ description: 'test', diagramType: '' }).success).toBe(false);
+    expect(validateSchema(generateMermaid.inputSchema!, { description: 'test', diagramType: '' }).success).toBe(false);
   });
 });

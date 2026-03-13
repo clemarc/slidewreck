@@ -346,6 +346,58 @@ Each gate uses Mastra's `suspend()` with a payload containing the agent's output
 - **No cloud deployment** — local-only learning project
 - **Environment:** Single `.env` file with documented defaults (NFR-24)
 
+### Frontend Architecture (Epic 9+ Spike Finding, 2026-03-13)
+
+**Decision:** Next.js 16 frontend in a pnpm workspace alongside the existing Mastra backend.
+
+**Stack:** Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn/ui components.
+
+**Project Structure — pnpm Workspace:**
+
+```
+bmad-mastra-presentation/
+├── package.json              ← root workspace config
+├── pnpm-workspace.yaml       ← packages: [".", "web"]
+├── src/mastra/               ← existing backend (unchanged)
+└── web/                      ← Next.js 16 app
+    ├── package.json
+    ├── next.config.ts
+    ├── tsconfig.json
+    └── app/                  ← App Router pages
+```
+
+- Single `pnpm dev` at root runs both Mastra (`:4111`) and Next.js (`:3000`) via `concurrently` or turbo
+- Zod schemas from `src/mastra/schemas/` shared via workspace reference or TypeScript path alias (whichever is simpler at implementation time)
+- No authentication — local-only, single-user
+
+**Mastra REST API Integration:**
+
+The frontend communicates with the Mastra backend via REST on `localhost:4111`:
+
+| Operation | Endpoint | Notes |
+|-----------|----------|-------|
+| Trigger workflow | `POST /api/workflows/{workflowId}` | Returns `runId` |
+| Resume suspended step | `POST /api/workflows/{workflowId}/{runId}/resume` | Payload: `{ step, resumeData }` |
+| Poll run status | TBD — verify in Epic 9 spike | No native SSE/websocket; polling or custom SSE wrapper |
+| Query agents | `POST /api/agents/{agentId}` | Direct agent calls if needed |
+
+No official `@mastra/client` SDK exists — a thin typed REST client will be built in Epic 9 (Story 9.2).
+
+**Spike note:** Exact endpoint shapes for run status polling must be verified against the installed Mastra version during the Epic 9 pre-sprint spike.
+
+**DeckSpec Browser Rendering (Epic 11):**
+
+The frontend renders DeckSpec JSON as an interactive slide viewer:
+
+- **9 layout components** — one React component per `SlideLayout` enum value (`title`, `content`, `split`, `image`, `quote`, `code`, `comparison`, `diagram`, `closing`)
+- **Colour theming** — `ColourPalette` (5 hex values) injected as CSS custom properties
+- **Mermaid diagrams** — 8 diagram types rendered client-side via `mermaid.js` (~100KB); graceful fallback on render failure
+- **Navigation** — keyboard (arrow keys), click, optional fullscreen
+- **Speaker notes** — parallel panel or toggle view (referenced via `speakerNoteRef`)
+- **No server-side rendering of slides** — DeckSpec is pre-computed, browser renders from JSON
+
+**Spike note:** Mermaid.js client-side integration and slide navigation UX to be verified in Epic 11 pre-sprint spike.
+
 ### Decision Impact Analysis
 
 **Implementation Sequence:**
@@ -482,6 +534,8 @@ Mastra documentation lags behind installed versions. Every story introducing a n
 2. **Constructor params:** Read the constructor or factory function signature from type definitions. Pay attention to required vs optional params, param naming (e.g., `id` vs `name`), and param types.
 3. **Return types:** Verify return types of key methods (e.g., `mastra.getWorkflow()` returns a single workflow, not an array). Check for `undefined` return possibilities.
 4. **Minimal isolation test:** Write a focused test that exercises the specific Mastra API surface (import path, constructor, key methods) in isolation. This is distinct from TDD business-logic tests — the goal here is to verify API compatibility with the installed Mastra version before building on it.
+5. **Context payload size estimation:** For agent steps in workflows, estimate the accumulated context passed to the agent (prior step outputs, workflow state, system prompt). If payload approaches model context limits, design the flow to trim unnecessary state before the agent step. Test with realistic data volumes, not minimal fixtures.
+6. **Structured output schema compatibility:** Verify that Zod schemas intended for LLM structured output are compatible with the Anthropic API. The schema passed to the LLM may need simplification compared to the in-app validation schema (e.g., removing complex refinements, nested discriminated unions, or transforms that the API doesn't support). Test the actual `generate()` call with the structured output schema, not just Zod `.parse()`.
 
 ### Suspend/Resume Path Checklist
 
@@ -527,7 +581,9 @@ if (!isExpectedType(someValue)) {
 | `Agent.instructions` not publicly accessible | Cannot read agent instructions in tests | Read source file with `readFileSync()` and assert content | Permanent |
 | `MDocument` has no `fromPDF()` method | PDF reference materials cannot be indexed directly | Pre-process with `unpdf` library, feed extracted text to `MDocument.fromText()` | Resolved (Epic 3 retro) |
 | `pgVector.upsert()` creates duplicates without IDs | Re-indexing accumulates duplicate vectors | Use `deleteFilter` parameter for atomic source-level replacement (see below) | Resolved (Epic 3 retro) |
-| `MastraScorer.getSteps()` crashes for prompt-based steps in `@mastra/core@1.8.0` | Cannot introspect scorer steps at runtime | Use `readFileSync()` source inspection in tests; verify step names via source text | Open (library bug) |
+| `MastraScorer.getSteps()` crashes for prompt-based steps | Cannot introspect scorer steps at runtime | Use `readFileSync()` source inspection in tests; verify step names via source text | Open (still broken in @mastra/core@1.13.1) |
+| `ListScoresResponse.scores` array elements typed as `any` in `@mastra/core@1.8.0` | Eval score access requires explicit type annotation | Use `(s: { score: number }) => s.score` cast at access site | Fixed in @mastra/core@1.13.1 — workaround removed |
+| Workflow steps cannot statically import `mastra` instance (circular dep) | `index.ts` registers workflows that reference `mastra` | Use `await import('../index')` inside step `execute` blocks | Permanent (by design) |
 
 ### PgVector Upsert Pattern (Epic 3 Retro Finding)
 
@@ -576,12 +632,23 @@ Anthropic has no embedding API. Current implementation uses OpenAI `text-embeddi
 ```
 talkforge/
 ├── package.json
+├── pnpm-workspace.yaml              # Epic 9+ — workspace: [".", "web"]
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── docker-compose.yml
 ├── .env
 ├── .env.example
 ├── .gitignore
+│
+├── web/                              # Epic 9+ — Next.js 16 frontend
+│   ├── package.json
+│   ├── next.config.ts
+│   ├── tsconfig.json
+│   └── app/
+│       ├── layout.tsx
+│       ├── page.tsx                  # Workflow input form
+│       └── run/[runId]/
+│           └── page.tsx              # Run status + review gates
 │
 └── src/
     └── mastra/
@@ -658,6 +725,10 @@ talkforge/
 | **5: Design** | `agents/designer.ts`, `tools/{generate-mermaid,suggest-layout,generate-colour-palette,build-slides,render-mermaid}.ts` + parallel branch in `talkforge.ts` |
 | **6: Memory** | `workflows/steps/style-learner.ts` + memory config in `index.ts` + prompt augmentation in `agents/writer.ts` |
 | **7: Coach** | `agents/coach.ts`, `tools/query-past-talks.ts`, `rag/session-history.ts` |
+| **8: CLI Deck Rendering** | PDF rendering pipeline (TBD in Epic 8 sprint) |
+| **9: Frontend Foundation** | `pnpm-workspace.yaml`, `web/{package.json,next.config.ts,tsconfig.json}`, `web/app/{layout,page}.tsx`, `web/app/run/[runId]/page.tsx`, Mastra API client |
+| **10: Status & Gates** | Live run status polling, gate review UI in `web/app/run/[runId]/` |
+| **11: Slide Viewer** | `web/app/` slide renderer components (9 layout types), Mermaid.js integration, colour theming |
 
 ### Architectural Boundaries
 
