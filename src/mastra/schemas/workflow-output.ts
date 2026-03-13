@@ -10,7 +10,7 @@ const WorkflowMetadataSchema = z.object({
   workflowRunId: z.string().describe('Unique identifier for the workflow run'),
   completedAt: z.string().describe('ISO 8601 timestamp of when the pipeline completed'),
   input: WorkflowInputSchema.describe('The original input that started this pipeline run'),
-  outputFilePath: z.string().optional().describe('Absolute path to the saved presentation file. Absent if file save failed.'),
+  outputDirPath: z.string().optional().describe('Absolute path to the saved presentation directory. Absent if file save failed.'),
 });
 
 /**

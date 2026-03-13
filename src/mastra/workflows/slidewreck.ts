@@ -477,27 +477,19 @@ ${JSON.stringify(structureResult.architectOutput, null, 2)}
       }
     }
 
-    // Auto-save presentation to disk (non-fatal)
-    let outputFilePath: string | undefined;
+    // Auto-save presentation to disk as structured folder (non-fatal)
+    let outputDirPath: string | undefined;
     try {
       const slug = initData.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50).replace(/^-|-$/g, '');
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `${slug}-${timestamp}.md`;
-      const dir = resolve('presentations');
+      const dir = resolve('presentations', `${slug}-${timestamp}`);
       await mkdir(dir, { recursive: true });
-      const filePath = join(dir, filename);
 
-      // Include slide markdown + diagrams in saved file
-      const content = [
+      // Speaker notes markdown
+      const notes = [
         `# ${initData.topic}`,
         '',
         speakerScript.speakerNotes,
-        '',
-        '---',
-        '',
-        '## Slides',
-        '',
-        buildResult.markdown,
         '',
         '---',
         '',
@@ -505,13 +497,25 @@ ${JSON.stringify(structureResult.architectOutput, null, 2)}
         '',
         JSON.stringify(researchBrief, null, 2),
       ].join('\n');
+      await writeFile(join(dir, 'speaker-notes.md'), notes, 'utf-8');
 
-      await writeFile(filePath, content, 'utf-8');
-      outputFilePath = filePath;
-      console.log(`[save-presentation] Written to ${outputFilePath}`);
+      // DeckSpec JSON (input for `pnpm render-deck`)
+      await writeFile(join(dir, 'deck-spec.json'), JSON.stringify(deckSpec, null, 2), 'utf-8');
+
+      // Diagram SVGs (co-located for render-deck inlining)
+      if (renderResult.diagrams.length > 0) {
+        const diagramDir = join(dir, 'diagrams');
+        await mkdir(diagramDir, { recursive: true });
+        for (const d of renderResult.diagrams) {
+          await writeFile(join(diagramDir, `diagram-${d.slideNumber}.svg`), d.svg, 'utf-8');
+        }
+      }
+
+      outputDirPath = dir;
+      console.log(`[save-presentation] Written to ${outputDirPath}`);
     } catch (error) {
-      console.error('[save-presentation] Failed to save presentation file:', error);
-      outputFilePath = undefined;
+      console.error('[save-presentation] Failed to save presentation files:', error);
+      outputDirPath = undefined;
     }
 
     return {
@@ -525,7 +529,7 @@ ${JSON.stringify(structureResult.architectOutput, null, 2)}
         workflowRunId: runId,
         completedAt: new Date().toISOString(),
         input: initData,
-        outputFilePath,
+        outputDirPath,
       },
     };
   })
