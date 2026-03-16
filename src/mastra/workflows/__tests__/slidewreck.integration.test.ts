@@ -232,7 +232,7 @@ const mockCollectReferencesStep = createStep({
       return resumeData;
     }
     return await suspend({
-      prompt: 'Provide reference materials (file paths or URLs) for the presentation, or resume with an empty materials array to skip.',
+      prompt: 'Provide reference materials (file paths or URLs) for the presentation, or resume without materials to skip.',
     });
   },
 });
@@ -579,6 +579,20 @@ describe('collect-references step', () => {
     const result = await run.resume({
       step: 'collect-references',
       resumeData: { materials: [] },
+    });
+
+    expect(result.status).toBe('suspended');
+    if (result.status !== 'suspended') return;
+    expect(result.suspended).toContainEqual(['review-research']);
+  }, 15_000);
+
+  it('should continue to Gate 1 after resuming with omitted materials field — default skip path (AC-A3b)', async () => {
+    const run = await testPipeline.createRun();
+    await run.start({ inputData: testInput });
+
+    const result = await run.resume({
+      step: 'collect-references',
+      resumeData: {},
     });
 
     expect(result.status).toBe('suspended');

@@ -227,7 +227,7 @@ const collectReferencesStep = createStep({
       return resumeData;
     }
     return await suspend({
-      prompt: 'Provide reference materials (file paths or URLs) for the presentation, or resume with an empty materials array to skip.',
+      prompt: 'Provide reference materials (file paths or URLs) for the presentation, or resume without materials to skip.',
     });
   },
 });

@@ -38,6 +38,19 @@ describe('CollectReferencesResumeSchema', () => {
     }
   });
 
+  it('should default to empty array when materials field is omitted', () => {
+    const result = CollectReferencesResumeSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.materials).toEqual([]);
+    }
+  });
+
+  it('should reject null materials value (default only applies to undefined)', () => {
+    const result = CollectReferencesResumeSchema.safeParse({ materials: null });
+    expect(result.success).toBe(false);
+  });
+
   it('should reject invalid type values (AC-T1c)', () => {
     const result = CollectReferencesResumeSchema.safeParse({
       materials: [{ type: 'invalid', path: '' }],

@@ -6,5 +6,5 @@ export const CollectReferencesSuspendSchema = z.object({
 });
 
 export const CollectReferencesResumeSchema = z.object({
-  materials: z.array(ReferenceMaterialSchema).describe('Reference materials to index. Empty array to skip.'),
+  materials: z.array(ReferenceMaterialSchema).default([]).describe('Reference materials to index. Omit or empty array to skip.'),
 });
