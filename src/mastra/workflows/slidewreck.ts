@@ -254,7 +254,7 @@ export const slidewreck = createWorkflow({
     }
 
     // Index speaker reference materials from collect-references step (AC-A5)
-    if (materials.length > 0) {
+    if (materials && materials.length > 0) {
       try {
         await clearUserReferences(pgVector);
         const result = await indexUserReferences(pgVector, materials);

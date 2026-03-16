@@ -14,11 +14,13 @@ This document provides the complete epic and story breakdown for bmad-mastra-pre
 
 ### Execution Order
 
-Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics (8, 9) take priority over backend personalization (6, 7). Epics 8 and 9 can run in parallel as they are independent concerns.
+Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics (8, 9) take priority. Epics 6 (Mastra-native observability) and 7 (external observability/OTEL) are new additions that run in parallel with the frontend chain.
 
-**1 → 2 → 3 → 4 → 5 → 8 + 9 (parallel) → 10 → 11 + 12 (parallel) → 13 → 14**
+**1 → 2 → 3 → 4 → 5 → 8 + 9 + 6-spike (parallel) → 10 + 6 (parallel) → 11 + 12 + 7 (parallel) → 13 → 14**
 
 - Epics 8 (CLI rendering) and 9 (FE foundation) are independent and can run in parallel
+- Epic 6 spike runs during the 8+9 sprint; Epic 6 implementation runs parallel with Epic 10
+- Epic 7 (external OTEL export) runs parallel with Epics 11+12 once native observability is in place
 - Epics 9 → 10 → 11/12 form the frontend chain (10 and 11 are independent of each other; 12 builds on both)
 - Epics 13–14 (personalization, coaching) are backend Mastra work deferred until the frontend is usable
 
@@ -67,10 +69,10 @@ Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics
 - NFR-6: Failed generation steps shall retry up to 3 times with exponential backoff before reporting failure. — **Phase 1**
 - NFR-7: If an optional capability fails, the system shall continue with a placeholder rather than abort. — **Phase 2+**
 - NFR-8: Reference material indexing failures shall warn the user but not block execution. — **Phase 3**
-- NFR-9: Each generation step shall log: step name, input token count, output token count, latency, and model used. — **Phase 1+**
-- NFR-10: Each step shall log: step name, status (pending/running/paused/complete/failed), and duration. — **Phase 1+**
+- NFR-9: Each generation step shall log: step name, input token count, output token count, latency, and model used. — **Phase 1+, Epic 6**
+- NFR-10: Each step shall log: step name, status (pending/running/paused/complete/failed), and duration. — **Phase 1+, Epic 6**
 - NFR-11: Evaluation results shall be queryable by date range and talk ID. — **Phase 4**
-- NFR-12: Data persistence operations shall log: key, operation (read/write/delete), and payload size. — **Phase 13**
+- NFR-12: Data persistence operations shall log: key, operation (read/write/delete), and payload size. — **Phase 13, Epic 6 (partial)**
 - NFR-13: Adding a new generation capability shall require only defining its config without modifying core. — **Phase 2+**
 - NFR-14: Adding a new evaluation shall require only adding an entry to the evaluation registry. — **Phase 4**
 - NFR-15: The tool registry shall support adding custom tools without modifying existing capabilities. — **Phase 2+**
@@ -116,8 +118,8 @@ Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics
 
 **From Architecture — Known Gaps (non-blocking):**
 - FR-17: No packaging tool for ZIP output (Phase 7)
-- NFR-19: No interface for view/delete personal data (Phase 6)
-- NFR-20: No tool for JSON data export (Phase 7)
+- NFR-19: No interface for view/delete personal data (Epic 13)
+- NFR-20: No tool for JSON data export (Epic 14)
 - NFR-23: No explicit `pnpm eval` script (Phase 4)
 
 ### FR Coverage Map
@@ -136,15 +138,15 @@ Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics
 - FR-12: Epic 2 — Conditional step skipping by format
 - FR-13: Epic 5 — Slide specifications and diagrams
 - FR-14: Epic 1 — Speaker notes with timing and markers
-- FR-15: Epic 7 — Prep package (Q&A, timing, contingencies, social copy)
+- FR-15: Epic 14 — Prep package (Q&A, timing, contingencies, social copy)
 - FR-16: Epic 4 — Evaluation scorecard
-- FR-17: Epic 7 — Downloadable ZIP output
-- FR-18: Epic 6 — Cold start without style data
-- FR-19: Epic 6 — Edit diff detection at gates
-- FR-20: Epic 6 — Style insight persistence by category
-- FR-21: Epic 6 — Style-augmented prompt retrieval
-- FR-22: Epic 6 — Cross-session talk metadata
-- FR-23: Epic 7 — Past talk repetition avoidance
+- FR-17: Epic 14 — Downloadable ZIP output
+- FR-18: Epic 13 — Cold start without style data
+- FR-19: Epic 13 — Edit diff detection at gates
+- FR-20: Epic 13 — Style insight persistence by category
+- FR-21: Epic 13 — Style-augmented prompt retrieval
+- FR-22: Epic 13 — Cross-session talk metadata
+- FR-23: Epic 14 — Past talk repetition avoidance
 - FR-24: Epic 4 — Automated eval suite
 - FR-25: Epic 4 — Eval result storage for trends
 - FR-26: Epic 4 — Scorecard display
@@ -183,6 +185,21 @@ Speaker can receive slide specifications and rendered Mermaid diagrams alongside
 **FRs covered:** FR-11, FR-13
 **NFR focus:** NFR-3, 4, 16
 **Mastra capabilities:** Parallel workflows, agent addition
+
+### Epic 6: Mastra-Native Observability
+> **Spike required + Winston discussion before story refinement.**
+
+Instrument the TalkForge pipeline for structured traces visible in Mastra Studio. Agent calls, tool invocations, workflow steps — full visibility into what the agents are doing.
+**NFR focus:** NFR-9, NFR-10, NFR-12 (partial)
+**Mastra capabilities:** Observability, tracing, Studio integration
+**SC-1 partial:** Delivers the "observability" capability from the 7 required Mastra core capabilities.
+
+### Epic 7: External Observability & OTEL Export
+> **Depends on Epic 6. Spike required.**
+
+Export traces and metrics to external observability platforms (Grafana, Datadog, etc.) via OpenTelemetry.
+**Depends on:** Epic 6
+**Capabilities:** OTEL export, collector integration, external backend support
 
 ### Epic 8: CLI Deck Rendering
 Standalone npm script that reads a DeckSpec JSON and produces a PDF via Marp. No Mastra dependency.
@@ -867,6 +884,96 @@ So that I can skip review for speed or opt-in for control when needed.
 **Given** the slide layout system
 **When** I add a new layout template via configuration
 **Then** the Designer can use the new layout without modifying existing code (NFR-16)
+
+## Epic 6: Mastra-Native Observability
+
+> **Pre-requisite: Spike required before story refinement.** This epic requires a focused spike to explore Mastra's built-in tracing/observability surface and a deep discussion with Winston (BMAD Architect) to align on scope and approach. Placeholder stories below will be refined into precise, implementable stories after the spike completes.
+
+> **Spike discussion with Winston must cover:** What traces does Mastra auto-capture vs. what needs manual instrumentation? What does Studio's Observability tab already surface? Are there conventions agents/tools must follow for traces to appear? What is the `mastra_traces` table schema and how do we query it? What are the gaps between NFR-9/NFR-10 requirements and out-of-the-box Mastra tracing?
+
+Instrument the TalkForge pipeline so that every agent call, tool invocation, and workflow step produces structured traces visible in Mastra Studio. This is the foundation for understanding what agents are actually doing, debugging failures, and verifying NFR-9 (per-step token/latency logging) and NFR-10 (step status tracking). Can run in parallel with frontend epics as it touches only the backend Mastra layer.
+
+**Depends on:** Epics 1–5 (working pipeline to instrument). Independent of Epics 8–12 (frontend/rendering).
+
+**NFRs addressed:** NFR-9, NFR-10, NFR-12 (partially — persistence logging)
+
+**Success criteria (SC-1 partial):** Observability is one of the 7 Mastra core capabilities required by SC-1. This epic delivers a working implementation.
+
+### Story 6.1: [Spike] Mastra Observability Surface Exploration
+
+As a developer,
+I want to understand what Mastra's built-in tracing captures automatically and what requires manual instrumentation,
+So that I can scope the remaining stories with precision.
+
+**Spike Goals:**
+- Inventory what Mastra auto-traces (agent calls, tool invocations, workflow step transitions)
+- Document what appears in Studio's Observability tab out of the box vs. what's missing
+- Explore the `mastra_traces` Postgres table schema and query patterns
+- Identify gaps between current tracing and NFR-9/NFR-10 requirements
+- Deep discussion with Winston on architectural approach and conventions
+- Produce refined stories 6.2–6.N with precise acceptance criteria
+
+**Acceptance Criteria:**
+
+**Given** the existing TalkForge pipeline (Epics 1–5)
+**When** a full workflow run is triggered via `mastra dev`
+**Then** the spike documents exactly which traces appear in Studio and which are missing
+
+**Given** the spike findings
+**When** the spike is complete
+**Then** stories 6.2–6.N are refined with concrete acceptance criteria based on verified Mastra API behaviour
+
+### Story 6.2: [Placeholder] Agent & Tool Call Instrumentation
+
+As a developer,
+I want every agent call and tool invocation in the pipeline to produce structured traces,
+So that I can see the full execution flow in Mastra Studio.
+
+> **Placeholder** — precise scope and acceptance criteria to be defined after Story 6.1 spike.
+
+### Story 6.3: [Placeholder] Workflow Step Trace Enrichment
+
+As a developer,
+I want workflow step traces enriched with token counts, latency, model used, and step status,
+So that NFR-9 and NFR-10 are satisfied and visible in Studio.
+
+> **Placeholder** — precise scope and acceptance criteria to be defined after Story 6.1 spike.
+
+### Story 6.4: [Placeholder] Trace Querying & Dashboard
+
+As a developer,
+I want to query trace data programmatically and see meaningful summaries in Studio,
+So that I can debug pipeline issues and monitor performance.
+
+> **Placeholder** — precise scope and acceptance criteria to be defined after Story 6.1 spike. May include custom Studio views or CLI reporting.
+
+---
+
+## Epic 7: External Observability & OTEL Export
+
+> **Depends on Epic 6.** This epic extends Mastra-native observability with OpenTelemetry (OTEL) export to external systems (Grafana, Datadog, etc.). Requires Epic 6 to be complete so there are structured traces to export. Can run in parallel with Epics 11+12.
+
+> **Pre-requisite: Spike required.** The spike for this epic should follow Epic 6 completion and explore OTEL collector integration, span/metric export formats, and target backend options.
+
+Export TalkForge traces and metrics to external observability platforms via OpenTelemetry. This enables production monitoring, alerting, and integration with existing team infrastructure beyond Mastra Studio.
+
+**Depends on:** Epic 6 (Mastra-native traces must exist before export). Independent of frontend epics.
+
+### Story 7.1: [Spike] OTEL Integration Surface Exploration
+
+As a developer,
+I want to understand how Mastra traces can be exported via OpenTelemetry,
+So that I can scope the OTEL integration stories precisely.
+
+**Spike Goals:**
+- Explore Mastra's OTEL exporter capabilities (if any built-in)
+- Evaluate OTEL collector setup options (sidecar, embedded)
+- Identify target backends (Grafana Tempo, Jaeger, Datadog) and their requirements
+- Produce refined stories 7.2–7.N
+
+> **Placeholder stories 7.2–7.N** to be defined after spike.
+
+---
 
 ## Epic 8: CLI Deck Rendering
 

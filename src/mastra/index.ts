@@ -1,5 +1,6 @@
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
+import { Observability, DefaultExporter } from '@mastra/observability';
 import { PostgresStore } from '@mastra/pg';
 import { researcher } from './agents/researcher';
 import { architect } from './agents/talk-architect';
@@ -35,6 +36,14 @@ export const mastra = new Mastra({
   logger: createLogger({
     name: 'slidewreck',
     level: parseLogLevel(process.env.LOG_LEVEL),
+  }),
+  observability: new Observability({
+    configs: {
+      default: {
+        serviceName: 'slidewreck',
+        exporters: [new DefaultExporter()],
+      },
+    },
   }),
   agents: { researcher, architect, writer, designer },
   workflows: { slidewreck },

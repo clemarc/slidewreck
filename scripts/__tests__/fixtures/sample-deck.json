@@ -1,0 +1,61 @@
+{
+  "title": "Building with Mastra AI",
+  "subtitle": "From Zero to Multi-Agent Pipeline",
+  "colourPalette": {
+    "primary": "#2C3E50",
+    "secondary": "#3498DB",
+    "accent": "#E74C3C",
+    "background": "#ECF0F1",
+    "text": "#2C3E50"
+  },
+  "slides": [
+    {
+      "slideNumber": 1,
+      "title": "Building with Mastra AI",
+      "layout": "title",
+      "content": "A hands-on journey through multi-agent orchestration",
+      "speakerNoteRef": "intro-notes"
+    },
+    {
+      "slideNumber": 2,
+      "title": "Why Multi-Agent?",
+      "layout": "content",
+      "content": "Single LLM calls hit limits fast. Multi-agent pipelines let specialized agents collaborate — researcher finds facts, writer crafts narrative, designer builds visuals.",
+      "speakerNoteRef": "why-agents-notes"
+    },
+    {
+      "slideNumber": 3,
+      "title": "Pipeline Architecture",
+      "layout": "diagram",
+      "content": "The full orchestration pipeline from input to PDF output.",
+      "speakerNoteRef": "arch-notes",
+      "diagram": {
+        "type": "flowchart",
+        "description": "Multi-agent pipeline: Input → Research → Write → Design → Render → PDF",
+        "svgPath": "diagrams/diagram-3.svg"
+      }
+    },
+    {
+      "slideNumber": 4,
+      "title": "Wisdom from the Trenches",
+      "layout": "quote",
+      "content": "The best agent is the one that knows when NOT to use an LLM.",
+      "speakerNoteRef": "quote-notes"
+    },
+    {
+      "slideNumber": 5,
+      "title": "The Render Pipeline",
+      "layout": "code",
+      "content": "```typescript\nconst marp = new Marp();\nconst { html, css } = marp.render(markdown);\nawait page.pdf({ width: '1280px', height: '720px' });\n```",
+      "speakerNoteRef": "code-notes"
+    },
+    {
+      "slideNumber": 6,
+      "title": "Thank You",
+      "layout": "closing",
+      "content": "Questions? Find me at @speaker",
+      "speakerNoteRef": "closing-notes"
+    }
+  ],
+  "diagramCount": 1
+}

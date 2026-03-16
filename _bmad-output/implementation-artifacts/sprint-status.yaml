@@ -22,9 +22,14 @@
 # EXECUTION ORDER (remaining):
 #   8 + 9 (parallel, this sprint) -> 10 -> 11 + 12 (parallel) -> 13 -> 14
 #
-# RETRO ACTION ITEMS — carried from E5 retro (2026-03-13):
-#   E4-1: Extract reusable workflow patterns — CARRY (low ROI until 3rd similar gate)
-#   E4-2: Monitor getSteps() fix in @mastra/core — CARRY (still broken in @mastra/core@1.13.1)
+# RETRO ACTION ITEMS — from E8+E9 retros (2026-03-16):
+#   E9-1: Add "fetch OpenAPI spec" step to spike checklist — NEW (HIGH)
+#   E9-2: Update architecture.md Mastra REST API table with correct endpoints — NEW (HIGH)
+#   E9-3: Add pnpm test:integration + MastraClient smoke tests — NEW (MEDIUM)
+#   E8-1: Add E2E integration test with real workflow output — NEW (HIGH)
+#   E8-2: Document render-deck SVG convention in architecture.md — NEW (MEDIUM)
+#   E4-1: Extract reusable workflow patterns — CARRY (low ROI)
+#   E4-2: Monitor getSteps() fix in @mastra/core — CARRY (no upstream fix)
 
 generated: 2026-03-16
 project: bmad-mastra-presentation
@@ -34,16 +39,16 @@ story_location: _bmad-output/implementation-artifacts
 
 sprint_status:
   # ── Epic 8: CLI Deck Rendering ──
-  epic-8: backlog
-  8-1-marp-templating-from-deckspec: backlog
-  8-2-pdf-generation-via-marp-puppeteer: backlog
-  8-3-custom-marp-theme-from-colour-palette: backlog
-  epic-8-retrospective: optional
+  epic-8: done
+  8-1-marp-templating-from-deckspec: done
+  8-2-pdf-generation-via-marp-puppeteer: done
+  8-3-custom-marp-theme-from-colour-palette: done
+  epic-8-retrospective: done
 
   # ── Epic 9: Frontend Foundation & Workflow Trigger ──
-  epic-9: backlog
-  9-1-nextjs-project-scaffolding: backlog
-  9-2-mastra-api-client: backlog
-  9-3-workflow-input-form: backlog
-  9-4-run-status-page-placeholder: backlog
-  epic-9-retrospective: optional
+  epic-9: done
+  9-1-nextjs-project-scaffolding: done
+  9-2-mastra-api-client: done
+  9-3-workflow-input-form: done
+  9-4-run-status-page-placeholder: done
+  epic-9-retrospective: done
