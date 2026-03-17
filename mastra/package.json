@@ -1,0 +1,40 @@
+{
+  "name": "slidewreck",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "mastra dev -e ../.env",
+    "build": "mastra build",
+    "test": "vitest",
+"typecheck": "tsc --noEmit",
+    "eval": "npx tsx --env-file=../.env src/eval.ts",
+    "render-deck": "npx tsx scripts/render-deck.ts",
+    "db:reset": "npx tsx --env-file=../.env scripts/db-reset.ts",
+    "db:reset:tables": "npx tsx --env-file=../.env scripts/db-reset.ts --tables",
+    "db:reset:vectors": "npx tsx --env-file=../.env scripts/db-reset.ts --vectors"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/openai": "^3.0.41",
+    "@ai-sdk/provider-utils": "^4.0.19",
+    "@mastra/core": "^1.13.2",
+    "@mastra/observability": "^1.5.0",
+    "@mastra/otel-bridge": "^1.0.7",
+    "@mastra/otel-exporter": "^1.0.7",
+    "@mastra/pg": "^1.8.0",
+    "@mastra/rag": "^2.1.2",
+    "ai": "^6.0.116",
+    "pg": "^8.20.0",
+    "unpdf": "^1.4.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@marp-team/marp-core": "^4.3.0",
+    "@mermaid-js/mermaid-cli": "^11.12.0",
+    "@types/node": "^25.5.0",
+    "mastra": "^1.3.12",
+    "puppeteer": "^24.39.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

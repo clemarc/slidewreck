@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { WorkflowInputSchema } from 'bmad-mastra-presentation/src/mastra/schemas/workflow-input';
+import { WorkflowInputSchema } from 'slidewreck/src/mastra/schemas/workflow-input';
 import { MastraClient, MastraApiError } from '@/lib/mastra-client';
 
 const AUDIENCE_LEVELS = ['beginner', 'intermediate', 'advanced', 'mixed'] as const;

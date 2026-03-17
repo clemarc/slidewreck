@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mastra agents to build presentations using BMAD and Claude Code. This is a Node.js/TypeScript project using pnpm with strict TypeScript enabled.
+Mastra agents to build presentations using BMAD and Claude Code. This is a Node.js/TypeScript project using pnpm workspaces with strict TypeScript enabled.
+
+### Workspace Structure
+
+- Root — lean orchestrator (`pnpm -r` delegates to packages)
+- `mastra/` — Mastra backend (package name: `slidewreck`)
+- `web/` — Next.js frontend
 
 ## Project Status
 
@@ -13,10 +19,11 @@ Epics 1-4 complete. Epic 5 (Visual Presentation Design) sprint open — API spik
 ## Development Commands
 
 - `docker compose up -d` — Start PostgreSQL + pgvector (required before dev)
-- `pnpm dev` — Start Mastra dev server (auto-inits PostgresStore)
+- `pnpm dev` — Start both Mastra + Next.js dev servers (via concurrently)
+- `pnpm dev:mastra` / `pnpm dev:web` — Start individual servers
 - `pnpm build` — Production build via Mastra CLI
-- `pnpm test` — Run Vitest suite
-- `pnpm typecheck` — TypeScript type checking (no emit)
+- `pnpm test` — Run Vitest in all workspace packages
+- `pnpm typecheck` — TypeScript type checking across all packages
 - `pnpm eval` — Run eval scorers (`npx tsx src/eval.ts`)
 
 ## Environment
@@ -29,20 +36,20 @@ Epics 1-4 complete. Epic 5 (Visual Presentation Design) sprint open — API spik
 
 ## Project Structure
 
-- `src/mastra/index.ts` — Single registration point for all agents, workflows, and tools
-- `src/mastra/agents/` — AI agent definitions
-- `src/mastra/workflows/` — Multi-step workflows with gates
-- `src/mastra/rag/` — RAG indexing (best practices KB, user reference materials)
-- `src/mastra/tools/` — Tool functions for agents
-- `src/mastra/schemas/` — Zod validation schemas
-- `src/mastra/config/` — Model tiers, shared PgVector instance, and configuration
+- `mastra/src/mastra/index.ts` — Single registration point for all agents, workflows, and tools
+- `mastra/src/mastra/agents/` — AI agent definitions
+- `mastra/src/mastra/workflows/` — Multi-step workflows with gates
+- `mastra/src/mastra/rag/` — RAG indexing (best practices KB, user reference materials)
+- `mastra/src/mastra/tools/` — Tool functions for agents
+- `mastra/src/mastra/schemas/` — Zod validation schemas
+- `mastra/src/mastra/config/` — Model tiers, shared PgVector instance, and configuration
 - `_bmad-output/` — BMAD planning & implementation artifacts (do not edit manually)
 
 ## Testing
 
 - **TDD is mandatory** — always write failing tests first, then implement minimal code to pass, then refactor (red-green-refactor)
 - Never write implementation code without a corresponding test
-- File pattern: `src/**/__tests__/**/*.test.ts`
+- File pattern: `mastra/src/**/__tests__/**/*.test.ts`
 - Tests are co-located with source in `__tests__/` subdirectories
 - Vitest with globals enabled, node environment
 - Run `pnpm test` to verify before marking any task complete
@@ -50,7 +57,7 @@ Epics 1-4 complete. Epic 5 (Visual Presentation Design) sprint open — API spik
 ## Mastra Conventions
 
 - Manual installation (not `mastra create`) — do not use scaffolding commands
-- Register all agents, workflows, and tools in `src/mastra/index.ts`
+- Register all agents, workflows, and tools in `mastra/src/mastra/index.ts`
 - Use `query_library_docs` MCP tool before implementing Mastra features to verify current APIs
 - Follow the **Defensive Validation Checklist** in `_bmad-output/planning-artifacts/architecture.md` for all new schemas and tools
 - Follow the **Mastra API Verification Checklist** in `_bmad-output/planning-artifacts/architecture.md` when introducing any new Mastra API
@@ -60,7 +67,7 @@ Epics 1-4 complete. Epic 5 (Visual Presentation Design) sprint open — API spik
 
 ## Model Tiers
 
-Agent roles map to model tiers in `src/mastra/config/models.ts`:
+Agent roles map to model tiers in `mastra/src/mastra/config/models.ts`:
 
 - Opus: writer (highest quality)
 - Sonnet: researcher, architect, designer, coach

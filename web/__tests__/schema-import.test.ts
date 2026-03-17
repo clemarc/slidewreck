@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WorkflowInputSchema, TalkFormatEnum } from 'bmad-mastra-presentation/src/mastra/schemas/workflow-input';
+import { WorkflowInputSchema, TalkFormatEnum } from 'slidewreck/src/mastra/schemas/workflow-input';
 
 describe('shared schema import', () => {
   it('imports WorkflowInputSchema from workspace package', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WorkflowInputSchema } from 'bmad-mastra-presentation/src/mastra/schemas/workflow-input';
+import { WorkflowInputSchema } from 'slidewreck/src/mastra/schemas/workflow-input';
 
 describe('workflow form validation', () => {
   it('rejects empty topic', () => {

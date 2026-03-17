@@ -54,6 +54,6 @@ jobs:
         if: steps.chromium-cache.outputs.cache-hit != 'true'
         run: npx puppeteer browsers install chrome
 
-      - run: pnpm typecheck
+      - run: pnpm -r typecheck
 
-      - run: pnpm test --run
+      - run: pnpm -r test -- --run
