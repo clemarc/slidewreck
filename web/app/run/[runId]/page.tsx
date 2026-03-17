@@ -104,7 +104,7 @@ export default function RunStatusPage() {
                 <div className="mt-6 space-y-4">
                   <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
                     <GateContent
-                      gateId={gate.suspendPayload.gateId}
+                      gateId={gate.suspendPayload.gateId ?? gate.stepId}
                       output={gate.suspendPayload.output}
                       summary={gate.suspendPayload.summary}
                     />

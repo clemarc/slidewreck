@@ -125,11 +125,14 @@ export class MastraClient {
     step: string,
     resumeData: unknown,
   ): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/workflows/${workflowId}/resume-async`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, step, resumeData }),
-    });
+    const res = await fetch(
+      `${this.baseUrl}/api/workflows/${workflowId}/resume-async?runId=${encodeURIComponent(runId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step, resumeData }),
+      },
+    );
     if (!res.ok) {
       const body = await res.text();
       throw new MastraApiError(res.status, body || res.statusText);

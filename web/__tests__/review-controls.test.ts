@@ -22,11 +22,10 @@ describe('ReviewControls resume logic', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4111/api/workflows/slidewreck/resume-async',
+      'http://localhost:4111/api/workflows/slidewreck/resume-async?runId=run-123',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          runId: 'run-123',
           step: 'review-research',
           resumeData: { decision: 'approve', feedback: 'Looks great!' },
         }),
@@ -45,10 +44,9 @@ describe('ReviewControls resume logic', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4111/api/workflows/slidewreck/resume-async',
+      'http://localhost:4111/api/workflows/slidewreck/resume-async?runId=run-123',
       expect.objectContaining({
         body: JSON.stringify({
-          runId: 'run-123',
           step: 'architect-structure',
           resumeData: { decision: 'reject', feedback: 'Need more options' },
         }),
@@ -82,10 +80,9 @@ describe('ReviewControls resume logic', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:4111/api/workflows/slidewreck/resume-async',
+      'http://localhost:4111/api/workflows/slidewreck/resume-async?runId=run-123',
       expect.objectContaining({
         body: JSON.stringify({
-          runId: 'run-123',
           step: 'review-script',
           resumeData: { decision: 'approve' },
         }),

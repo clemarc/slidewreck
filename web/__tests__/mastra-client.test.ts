@@ -166,12 +166,11 @@ describe('MastraClient', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:4111/api/workflows/slidewreck/resume-async',
+        'http://localhost:4111/api/workflows/slidewreck/resume-async?runId=run-123',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            runId: 'run-123',
             step: 'review-research',
             resumeData: { decision: 'approved', feedback: 'Looks good' },
           }),
