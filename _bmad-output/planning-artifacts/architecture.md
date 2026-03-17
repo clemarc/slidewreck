@@ -92,7 +92,7 @@ The prior `architecture.md` contains useful ideas (agent roles, pipeline structu
 ### Cross-Cutting Concerns Identified
 
 1. **Suspend/resume state management** — every human gate needs consistent suspend payload structure, storage-backed persistence, and Studio UI compatibility
-2. **Observability** — all agents and tools must emit structured traces (NFR-9, NFR-10); Mastra's built-in tracing + Studio covers this if agents/tools follow conventions
+2. **Observability** — Mastra auto-traces all agent runs, model calls (with token breakdown), tool invocations, and workflow step transitions (NFR-9, NFR-10) via the `wrapMastra()` proxy — no manual instrumentation or conventions required. Requires `@mastra/observability` package with explicit `Mastra` constructor config; without it, all tracing is no-op. Dual-export pattern: `DefaultExporter` (Postgres → Studio) + `OtelExporter` (OTLP → Grafana Tempo)
 3. **Style learning integration** — spans the Writer, human gate diff capture, style analysis, memory persistence, and dynamic prompt augmentation; touches 4 of 7 phases
 4. **Registry-based extensibility** — agents, tools, evals, and slide layouts must all be addable via config/registry without modifying existing code (NFR-13–16)
 5. **Graceful degradation** — optional features (image generation, reference indexing) must fail without blocking the pipeline (NFR-7, NFR-8)
@@ -108,6 +108,7 @@ All pending decisions from context analysis have been resolved in Core Architect
 - **AD-3: Human Gate Placement** — Resolved: 4 gates, Gate 4 optional (auto-approve by default)
 - **AD-4: Pre-existing Architecture** — Confirmed: treated as proposals, not specs
 - **AD-5: LLM Provider Strategy** — Resolved: Anthropic-only with built-in provider-defined tools (web search, web fetch with dynamic filtering, programmatic tool calling)
+- **AD-6: Observability Architecture** — Resolved: `@mastra/observability` with dual-export (DefaultExporter for Studio, OtelExporter for Grafana LGTM). Epic 7 (external OTEL) absorbed into Epic 6. See spike: `_bmad-output/implementation-artifacts/spike-epic-6-mastra-observability.md`
 
 ## Starter Template Evaluation
 
@@ -232,11 +233,19 @@ src/
 - Connection: `DATABASE_URL` env var
 - Rationale: Consistent infrastructure from Phase 1. Covers workflow state, RAG vectors, memory, eval results, and traces. Docker Compose makes setup a one-liner.
 
+**Observability Infrastructure:** Grafana LGTM (AD-6)
+- Docker Compose: `grafana/otel-lgtm:latest` — Loki (logs), Grafana (UI), Tempo (traces), Mimir (metrics) in a single container
+- Ports: `3000` (Grafana UI), `4317` (OTLP gRPC), `4318` (OTLP HTTP), `3100` (Loki)
+- Packages: `@mastra/observability` (Observability entrypoint + DefaultExporter), `@mastra/otel-exporter` (OTLP export), `@mastra/otel-bridge` (bidirectional OTEL context)
+- Dual-export: `DefaultExporter` persists to Postgres for Studio traces; `OtelExporter` ships to Grafana Tempo via OTLP HTTP
+- `OtelBridge` enables OTEL-instrumented code (HTTP clients, DB queries) inside agents to nest correctly in Grafana trace trees
+- Env: `OTEL_EXPORTER_OTLP_ENDPOINT` (defaults to `http://localhost:4318`)
+
 **Mastra Tables (auto-created):**
 - `mastra_workflow_snapshot` — suspend/resume state
 - `mastra_threads` / `mastra_messages` — conversation memory
 - `mastra_evals` / `mastra_scorers` — eval results
-- `mastra_traces` — observability data
+- `mastra_traces` — observability data (populated by `DefaultExporter`, not auto-populated by `@mastra/core`)
 - `mastra_resources` — working memory
 
 **Output Schemas:** Zod structured output per agent, defined phase-by-phase. Pre-existing TypeScript interfaces from prior architecture used as reference, not as given.
@@ -374,14 +383,32 @@ bmad-mastra-presentation/
 
 The frontend communicates with the Mastra backend via REST on `localhost:4111`:
 
-| Operation | Endpoint | Notes |
-|-----------|----------|-------|
-| Trigger workflow | `POST /api/workflows/{workflowId}` | Returns `runId` |
-| Resume suspended step | `POST /api/workflows/{workflowId}/{runId}/resume` | Payload: `{ step, resumeData }` |
-| Poll run status | TBD — verify in Epic 9 spike | No native SSE/websocket; polling or custom SSE wrapper |
-| Query agents | `POST /api/agents/{agentId}` | Direct agent calls if needed |
+| Operation | Endpoint | Method | Request | Response | Notes |
+|-----------|----------|--------|---------|----------|-------|
+| Create run | `/api/workflows/{workflowId}/create-run` | POST | `{}` | `{ runId: string }` | Step 1 of trigger flow — allocates a run ID before execution starts |
+| Start async | `/api/workflows/{workflowId}/start-async?runId={runId}` | POST | `{ inputData: Record<string, unknown> }` | `{ status, result, error }` | Step 2 of trigger flow — kicks off execution. Does NOT return `runId` |
+| Get run status | `/api/workflows/{workflowId}/runs/{runId}` | GET | — | `WorkflowRun` (see below) | Poll this endpoint for status updates |
+| Resume suspended step | `/api/workflows/{workflowId}/resume-async` | POST | `{ runId, step, resumeData }` | `{}` | `runId` is in the body, not a path param |
+| Query agents | `/api/agents/{agentId}` | POST | `{ messages }` | Agent response | Direct agent calls if needed |
 
-No official `@mastra/client` SDK exists — a thin typed REST client will be built in Epic 9 (Story 9.2).
+**`WorkflowRun` response shape:**
+```typescript
+{
+  runId: string;
+  workflowName?: string;
+  status: 'pending' | 'running' | 'waiting' | 'suspended' | 'success' | 'failed' | 'canceled' | 'paused' | 'bailed' | 'tripwire';
+  createdAt: string;
+  updatedAt: string;
+  resourceId?: string;
+  result?: unknown;
+  error?: unknown;
+  steps?: Record<string, unknown>;
+}
+```
+
+**Canonical trigger pattern:** Two-step `create-run` → `start-async`. Never call `start-async` alone expecting a `runId` in the response — it returns execution status, not the run identifier. See `web/lib/mastra-client.ts` for the reference implementation.
+
+**Verified against:** `@mastra/server@1.8.0` (Epic 9, 2026-03-16). OpenAPI spec from `localhost:4111` is the authoritative source — re-verify on Mastra upgrades.
 
 **Spike note:** Exact endpoint shapes for run status polling must be verified against the installed Mastra version during the Epic 9 pre-sprint spike.
 
@@ -536,6 +563,7 @@ Mastra documentation lags behind installed versions. Every story introducing a n
 4. **Minimal isolation test:** Write a focused test that exercises the specific Mastra API surface (import path, constructor, key methods) in isolation. This is distinct from TDD business-logic tests — the goal here is to verify API compatibility with the installed Mastra version before building on it.
 5. **Context payload size estimation:** For agent steps in workflows, estimate the accumulated context passed to the agent (prior step outputs, workflow state, system prompt). If payload approaches model context limits, design the flow to trim unnecessary state before the agent step. Test with realistic data volumes, not minimal fixtures.
 6. **Structured output schema compatibility:** Verify that Zod schemas intended for LLM structured output are compatible with the Anthropic API. The schema passed to the LLM may need simplification compared to the in-app validation schema (e.g., removing complex refinements, nested discriminated unions, or transforms that the API doesn't support). Test the actual `generate()` call with the structured output schema, not just Zod `.parse()`.
+7. **Fetch OpenAPI spec from running dev server:** Start the dev server (`mastra dev`), fetch the OpenAPI spec from `http://localhost:4111/openapi.json` (or Swagger UI at `/swagger-ui`), and document the actual request/response shapes for every endpoint the epic will use. Do not reverse-engineer bundled source code — the OpenAPI spec is the authoritative source. Update the Mastra REST API table in this document with verified endpoints and response schemas.
 
 ### Suspend/Resume Path Checklist
 
@@ -811,17 +839,19 @@ User Input (topic, audience, format)
 - Agent → Workflow: via `createStep(agent, { structuredOutput })` — Mastra handles invocation
 - Step → Step: via `.then()` chain with `.map()` for schema transforms
 - Gate → User: via `suspend()` payload → Studio UI → `resume()` with feedback
-- Workflow → Storage: automatic via `PostgresStore` (snapshots, traces, evals)
+- Workflow → Storage: automatic via `PostgresStore` (snapshots, evals)
+- Workflow/Agent → Observability: automatic via `wrapMastra()` proxy — spans emitted to configured exporters (DefaultExporter → Postgres, OtelExporter → Grafana Tempo)
 
 **External Integrations:**
 - Anthropic API: LLM calls for all agents and eval judges (via Mastra model router), plus provider-defined tools — web search, web fetch with dynamic filtering, and programmatic tool calling (AD-5)
 - Mermaid CLI: `@mermaid-js/mermaid-cli` for SVG rendering (Phase 5)
+- Grafana LGTM: OTEL trace collection and visualization (AD-6)
 
 **Development Workflow:**
 - `pnpm dev` → `mastra dev` → Studio UI on `localhost:4111`
 - `pnpm test` → `vitest` → runs all `__tests__/` co-located tests
 - `pnpm build` → `mastra build` → production output in `.mastra/output/`
-- Docker Compose manages Postgres lifecycle independently
+- Docker Compose manages Postgres + Grafana LGTM lifecycle independently
 
 ## Architecture Validation Results
 

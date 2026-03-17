@@ -14,13 +14,13 @@ This document provides the complete epic and story breakdown for bmad-mastra-pre
 
 ### Execution Order
 
-Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics (8, 9) take priority. Epics 6 (Mastra-native observability) and 7 (external observability/OTEL) are new additions that run in parallel with the frontend chain.
+Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics (8, 9) take priority. Epic 6 (observability + Grafana LGTM) runs in parallel with the frontend chain. Epic 7 (external OTEL export) has been absorbed into Epic 6 — see AD-6 in architecture.md.
 
 **1 → 2 → 3 → 4 → 5 → 8 + 9 + 6-spike (parallel) → 10 + 6 (parallel) → 11 + 12 + 7 (parallel) → 13 → 14**
 
 - Epics 8 (CLI rendering) and 9 (FE foundation) are independent and can run in parallel
 - Epic 6 spike runs during the 8+9 sprint; Epic 6 implementation runs parallel with Epic 10
-- Epic 7 (external OTEL export) runs parallel with Epics 11+12 once native observability is in place
+- Epic 7 (Grafana dashboards) runs parallel with Epics 11+12 once traces are flowing from Epic 6
 - Epics 9 → 10 → 11/12 form the frontend chain (10 and 11 are independent of each other; 12 builds on both)
 - Epics 13–14 (personalization, coaching) are backend Mastra work deferred until the frontend is usable
 
@@ -186,20 +186,20 @@ Speaker can receive slide specifications and rendered Mermaid diagrams alongside
 **NFR focus:** NFR-3, 4, 16
 **Mastra capabilities:** Parallel workflows, agent addition
 
-### Epic 6: Mastra-Native Observability
-> **Spike required + Winston discussion before story refinement.**
+### Epic 6: Observability & Grafana LGTM
+> **Spike complete.** See `_bmad-output/implementation-artifacts/spike-epic-6-mastra-observability.md`
 
-Instrument the TalkForge pipeline for structured traces visible in Mastra Studio. Agent calls, tool invocations, workflow steps — full visibility into what the agents are doing.
+Activate Mastra's built-in observability (auto-traces for agents, models, tools, workflow steps), verify NFR-9/NFR-10 coverage, and export traces to Grafana LGTM via OTEL. Absorbs former Epic 7 (OTEL export).
 **NFR focus:** NFR-9, NFR-10, NFR-12 (partial)
-**Mastra capabilities:** Observability, tracing, Studio integration
+**Mastra capabilities:** Observability, tracing, Studio integration, OTEL export
 **SC-1 partial:** Delivers the "observability" capability from the 7 required Mastra core capabilities.
 
-### Epic 7: External Observability & OTEL Export
-> **Depends on Epic 6. Spike required.**
+### Epic 7: Grafana Observability Dashboards
+> **Spike required before story refinement.** Depends on Epic 6 (traces flowing into Grafana LGTM).
 
-Export traces and metrics to external observability platforms (Grafana, Datadog, etc.) via OpenTelemetry.
-**Depends on:** Epic 6
-**Capabilities:** OTEL export, collector integration, external backend support
+Grafana dashboards (provisioned as YAML) for monitoring TalkForge pipeline health, agent performance, and cost tracking. Builds on the OTEL traces from Epic 6.
+**Depends on:** Epic 6 (traces in Grafana Tempo)
+**Capabilities:** Grafana dashboard-as-code (YAML provisioning), Tempo queries, metrics panels
 
 ### Epic 8: CLI Deck Rendering
 Standalone npm script that reads a DeckSpec JSON and produces a PDF via Marp. No Mastra dependency.
@@ -885,91 +885,148 @@ So that I can skip review for speed or opt-in for control when needed.
 **When** I add a new layout template via configuration
 **Then** the Designer can use the new layout without modifying existing code (NFR-16)
 
-## Epic 6: Mastra-Native Observability
+## Epic 6: Observability & Grafana LGTM
 
-> **Pre-requisite: Spike required before story refinement.** This epic requires a focused spike to explore Mastra's built-in tracing/observability surface and a deep discussion with Winston (BMAD Architect) to align on scope and approach. Placeholder stories below will be refined into precise, implementable stories after the spike completes.
+> **Spike complete (2026-03-17).** See `_bmad-output/implementation-artifacts/spike-epic-6-mastra-observability.md` for full findings. Absorbs former Epic 7 (OTEL export).
 
-> **Spike discussion with Winston must cover:** What traces does Mastra auto-capture vs. what needs manual instrumentation? What does Studio's Observability tab already surface? Are there conventions agents/tools must follow for traces to appear? What is the `mastra_traces` table schema and how do we query it? What are the gaps between NFR-9/NFR-10 requirements and out-of-the-box Mastra tracing?
+Activate Mastra's built-in observability and export traces to Grafana LGTM. The spike confirmed that Mastra auto-traces all agent runs, model calls (with full token breakdown), tool invocations, and workflow step transitions via the `wrapMastra()` proxy — no manual instrumentation needed. NFR-9 and NFR-10 are satisfied out of the box. This epic is configuration + verification + Grafana, not instrumentation from scratch.
 
-Instrument the TalkForge pipeline so that every agent call, tool invocation, and workflow step produces structured traces visible in Mastra Studio. This is the foundation for understanding what agents are actually doing, debugging failures, and verifying NFR-9 (per-step token/latency logging) and NFR-10 (step status tracking). Can run in parallel with frontend epics as it touches only the backend Mastra layer.
-
-**Depends on:** Epics 1–5 (working pipeline to instrument). Independent of Epics 8–12 (frontend/rendering).
+**Depends on:** Epics 1–5 (working pipeline to observe). Independent of Epics 8–12 (frontend/rendering).
 
 **NFRs addressed:** NFR-9, NFR-10, NFR-12 (partially — persistence logging)
 
-**Success criteria (SC-1 partial):** Observability is one of the 7 Mastra core capabilities required by SC-1. This epic delivers a working implementation.
+**Success criteria (SC-1 partial):** Observability is one of the 7 Mastra core capabilities required by SC-1. This epic delivers a working implementation with both Studio and Grafana visibility.
 
-### Story 6.1: [Spike] Mastra Observability Surface Exploration
+**Packages:** `@mastra/observability` (^1.5.0), `@mastra/otel-exporter` (^1.0.7), `@mastra/otel-bridge` (^1.0.7)
+
+### Story 6.1: [Spike] Mastra Observability Surface Exploration — DONE
+
+> **Completed 2026-03-17.** Findings in `_bmad-output/implementation-artifacts/spike-epic-6-mastra-observability.md`. Confirmed: observability is opt-in via `@mastra/observability`, all tracing is automatic, NFR-9/NFR-10 fully covered, OTEL export is config-level via `@mastra/otel-exporter` + `@mastra/otel-bridge`. Epic 7 absorbed.
+
+### Story 6.2: Mastra-Native Observability Setup
 
 As a developer,
-I want to understand what Mastra's built-in tracing captures automatically and what requires manual instrumentation,
-So that I can scope the remaining stories with precision.
+I want the TalkForge pipeline to produce structured traces visible in Mastra Studio,
+So that I can see the full execution flow of agents, model calls, tools, and workflow steps.
 
-**Spike Goals:**
-- Inventory what Mastra auto-traces (agent calls, tool invocations, workflow step transitions)
-- Document what appears in Studio's Observability tab out of the box vs. what's missing
-- Explore the `mastra_traces` Postgres table schema and query patterns
-- Identify gaps between current tracing and NFR-9/NFR-10 requirements
-- Deep discussion with Winston on architectural approach and conventions
-- Produce refined stories 6.2–6.N with precise acceptance criteria
+**Scope:**
+- Install `@mastra/observability`
+- Wire `Observability` entrypoint with `DefaultExporter` in the `Mastra` constructor (`src/mastra/index.ts`)
+- Verify traces appear in Studio for a full workflow run
 
 **Acceptance Criteria:**
 
-**Given** the existing TalkForge pipeline (Epics 1–5)
-**When** a full workflow run is triggered via `mastra dev`
-**Then** the spike documents exactly which traces appear in Studio and which are missing
+**Given** the Mastra constructor has `observability` configured with `DefaultExporter`
+**When** a full TalkForge workflow run completes via `mastra dev`
+**Then** Studio's traces tab shows a nested span tree: workflow run → steps → agent runs → model generations → tool calls
 
-**Given** the spike findings
-**When** the spike is complete
-**Then** stories 6.2–6.N are refined with concrete acceptance criteria based on verified Mastra API behaviour
+**Given** a completed workflow trace in Studio
+**When** I inspect a model generation span
+**Then** it shows: model name, provider, input tokens, output tokens (with cache/reasoning breakdown), latency, finish reason (NFR-9)
 
-### Story 6.2: [Placeholder] Agent & Tool Call Instrumentation
+**Given** a completed workflow trace in Studio
+**When** I inspect workflow step spans
+**Then** each shows: step name, status (pending/running/paused/complete/failed), duration (NFR-10)
 
-As a developer,
-I want every agent call and tool invocation in the pipeline to produce structured traces,
-So that I can see the full execution flow in Mastra Studio.
+**Given** the observability config uses `DefaultExporter`
+**When** spans are exported
+**Then** they are persisted to the `mastra_traces` Postgres table and queryable via `mastra.getTrace(traceId)`
 
-> **Placeholder** — precise scope and acceptance criteria to be defined after Story 6.1 spike.
-
-### Story 6.3: [Placeholder] Workflow Step Trace Enrichment
-
-As a developer,
-I want workflow step traces enriched with token counts, latency, model used, and step status,
-So that NFR-9 and NFR-10 are satisfied and visible in Studio.
-
-> **Placeholder** — precise scope and acceptance criteria to be defined after Story 6.1 spike.
-
-### Story 6.4: [Placeholder] Trace Querying & Dashboard
+### Story 6.3: Grafana LGTM & OTEL Export
 
 As a developer,
-I want to query trace data programmatically and see meaningful summaries in Studio,
-So that I can debug pipeline issues and monitor performance.
+I want TalkForge traces to flow into Grafana via OpenTelemetry,
+So that I can visualise and query traces in Grafana Tempo alongside the Mastra Studio view.
 
-> **Placeholder** — precise scope and acceptance criteria to be defined after Story 6.1 spike. May include custom Studio views or CLI reporting.
+> **Absorbs former Epic 7** — OTEL export is config-level work, not a separate epic.
+
+**Scope:**
+- Add `grafana/otel-lgtm:latest` container to `docker-compose.yml` (ports: 3000 Grafana UI, 4317 OTLP gRPC, 4318 OTLP HTTP)
+- Add `@mastra/otel-exporter` with custom endpoint (`http://localhost:4318`, `http/protobuf` protocol)
+- Add `@mastra/otel-bridge` for bidirectional OTEL context propagation
+- Add `OTEL_EXPORTER_OTLP_ENDPOINT` to `.env.example`
+
+**Acceptance Criteria:**
+
+**Given** `docker compose up -d` starts both Postgres and LGTM containers
+**When** I navigate to `http://localhost:3000` (Grafana)
+**Then** the Grafana UI loads with Tempo as a pre-configured data source
+
+**Given** the Mastra constructor has both `DefaultExporter` and `OtelExporter` configured
+**When** a full TalkForge workflow run completes
+**Then** the same trace is visible in both Mastra Studio and Grafana Tempo (Explore > Tempo)
+
+**Given** a trace in Grafana Tempo
+**When** I expand the trace view
+**Then** spans show the same hierarchy as Studio: workflow run → steps → agent runs → model generations → tool calls
+
+**Given** `OtelBridge` is configured
+**When** OTEL-instrumented code (e.g., HTTP requests, DB queries) executes inside a Mastra agent
+**Then** those spans are nested under the correct parent Mastra span in Grafana
+
+### Story 6.4: NFR-12 Gap-Fill & Trace Verification
+
+As a developer,
+I want to verify that persistence operations are traced and fill any gaps,
+So that NFR-12 (persistence operation logging) is addressed and trace coverage is tested.
+
+**Scope:**
+- Verify whether storage operations (snapshot writes, resume reads) produce spans automatically
+- If not auto-traced: add manual spans for key persistence operations using `getOrCreateSpan()` from `@mastra/core/observability`
+- Write integration tests that trigger a workflow run and assert the expected span tree structure via `mastra.getTrace(traceId)`
+
+**Acceptance Criteria:**
+
+**Given** a workflow run that suspends and resumes
+**When** I inspect the trace
+**Then** suspend/resume operations are visible as spans (either auto-captured or manually instrumented)
+
+**Given** a completed workflow run
+**When** I call `mastra.getTrace(traceId)` programmatically
+**Then** I can traverse the span tree via `rootSpan` → `children` and find spans for each pipeline phase
+
+**Given** the trace integration tests
+**When** `pnpm test` runs
+**Then** tests assert: correct span count, expected span types present (WORKFLOW_RUN, WORKFLOW_STEP, AGENT_RUN, MODEL_GENERATION, TOOL_CALL), and NFR-9/NFR-10 attributes populated
 
 ---
 
-## Epic 7: External Observability & OTEL Export
+## Epic 7: Grafana Observability Dashboards
 
-> **Depends on Epic 6.** This epic extends Mastra-native observability with OpenTelemetry (OTEL) export to external systems (Grafana, Datadog, etc.). Requires Epic 6 to be complete so there are structured traces to export. Can run in parallel with Epics 11+12.
+> **Pre-requisite: Spike required before story refinement.** Depends on Epic 6 delivering traces to Grafana LGTM. The spike should explore Tempo query capabilities, Grafana dashboard provisioning (YAML), and identify which panels are most valuable for TalkForge pipeline monitoring.
 
-> **Pre-requisite: Spike required.** The spike for this epic should follow Epic 6 completion and explore OTEL collector integration, span/metric export formats, and target backend options.
+> **History:** This epic replaces the original Epic 7 (External Observability & OTEL Export), which was absorbed into Epic 6 as Story 6.3. The OTEL plumbing is config-level work; dashboarding is where the real value lives.
 
-Export TalkForge traces and metrics to external observability platforms via OpenTelemetry. This enables production monitoring, alerting, and integration with existing team infrastructure beyond Mastra Studio.
+Build Grafana dashboards provisioned as YAML (dashboard-as-code) for monitoring the TalkForge pipeline. Dashboards are version-controlled and auto-loaded by the LGTM container on startup.
 
-**Depends on:** Epic 6 (Mastra-native traces must exist before export). Independent of frontend epics.
+**Depends on:** Epic 6 (traces flowing into Grafana Tempo via OtelExporter). Independent of frontend epics.
 
-### Story 7.1: [Spike] OTEL Integration Surface Exploration
+**Potential dashboard candidates** (to be refined by spike):
+- Pipeline overview: workflow run success/failure rates, p50/p95 latency
+- Agent performance: per-agent token usage, model call latency, tool call frequency
+- Cost tracking: token consumption by model tier (Opus/Sonnet/Haiku), estimated cost per run
+- Step-level drilldown: individual step durations, suspend/resume wait times
+- Error analysis: failure rates by step, error categories
+
+### Story 7.1: [Spike] Grafana Dashboard Design & Provisioning Exploration
 
 As a developer,
-I want to understand how Mastra traces can be exported via OpenTelemetry,
-So that I can scope the OTEL integration stories precisely.
+I want to understand Grafana's dashboard provisioning capabilities and Tempo query patterns,
+So that I can scope the dashboard stories with precision.
 
 **Spike Goals:**
-- Explore Mastra's OTEL exporter capabilities (if any built-in)
-- Evaluate OTEL collector setup options (sidecar, embedded)
-- Identify target backends (Grafana Tempo, Jaeger, Datadog) and their requirements
-- Produce refined stories 7.2–7.N
+- Explore Grafana dashboard provisioning via YAML (`/etc/grafana/provisioning/dashboards/`)
+- Test Tempo TraceQL queries for TalkForge span types (AGENT_RUN, MODEL_GENERATION, WORKFLOW_STEP, etc.)
+- Identify which metrics/aggregations are available from traces (RED metrics, token histograms)
+- Evaluate whether Mimir metrics (from OtelExporter) add value beyond trace-derived panels
+- Prototype one dashboard panel (e.g., workflow run latency histogram) to validate the provisioning pipeline
+- Produce refined stories 7.2–7.N with concrete panel specifications
+
+**Acceptance Criteria:**
+
+**Given** a running LGTM container with TalkForge traces
+**When** the spike is complete
+**Then** a spike document exists with: verified provisioning approach, sample TraceQL queries, recommended dashboard layout, and refined story breakdown
 
 > **Placeholder stories 7.2–7.N** to be defined after spike.
 
