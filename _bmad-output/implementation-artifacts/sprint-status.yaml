@@ -1,15 +1,19 @@
-# Sprint: Epic 8 + Epic 9 (parallel)
-# generated: 2026-03-16
+# Sprint: Epic 10 + Epic 6 + Epic 7 (parallel)
+# generated: 2026-03-17
 # project: bmad-mastra-presentation
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
 #
 # PRIOR SPRINTS:
 #   Epic 1 (done), Epic 2 (done), Epic 3 (done), Epic 4 (done), Epic 5 (done)
+#   Epic 8 (done), Epic 9 (done)
 #
 # SPIKES (completed):
-#   spike-epic-8-cli-deck-rendering: done — _bmad-output/implementation-artifacts/spike-epic-8-cli-deck-rendering.md
+#   spike-epic-5-visual-presentation-design: done
+#   spike-epic-6-mastra-observability: done
+#   spike-epic-8-cli-deck-rendering: done
 #   spike-epic-9-frontend-architecture: done — decisions in architecture.md
+#   spike-epic-10-workflow-status-review-gates: done — all APIs live-verified
 #
 # STATUS DEFINITIONS:
 # ==================
@@ -20,35 +24,42 @@
 #   Stories -> Retrospective -> Spike for next epic -> Close sprint
 #
 # EXECUTION ORDER (remaining):
-#   8 + 9 (parallel, this sprint) -> 10 -> 11 + 12 (parallel) -> 13 -> 14
+#   10 + 6 + 7 (parallel, this sprint) -> 11 + 12 (parallel) -> 13 -> 14
 #
 # RETRO ACTION ITEMS — from E8+E9 retros (2026-03-16):
-#   E9-1: Add "fetch OpenAPI spec" step to spike checklist — NEW (HIGH)
-#   E9-2: Update architecture.md Mastra REST API table with correct endpoints — NEW (HIGH)
-#   E9-3: Add pnpm test:integration + MastraClient smoke tests — NEW (MEDIUM)
-#   E8-1: Add E2E integration test with real workflow output — NEW (HIGH)
-#   E8-2: Document render-deck SVG convention in architecture.md — NEW (MEDIUM)
+#   E9-1: Add "fetch OpenAPI spec" step to spike checklist — DONE (HIGH)
+#   E9-2: Update architecture.md Mastra REST API table with correct endpoints — DONE (HIGH)
+#   E9-3: Add pnpm test:integration + MastraClient smoke tests — DONE (MEDIUM)
+#   E8-1: Add E2E integration test with real workflow output — DONE (HIGH)
+#   E8-2: Document render-deck SVG convention in architecture.md — DONE (MEDIUM)
 #   E4-1: Extract reusable workflow patterns — CARRY (low ROI)
 #   E4-2: Monitor getSteps() fix in @mastra/core — CARRY (no upstream fix)
 
-generated: 2026-03-16
+generated: 2026-03-17
 project: bmad-mastra-presentation
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
-sprint_status:
-  # ── Epic 8: CLI Deck Rendering ──
-  epic-8: done
-  8-1-marp-templating-from-deckspec: done
-  8-2-pdf-generation-via-marp-puppeteer: done
-  8-3-custom-marp-theme-from-colour-palette: done
-  epic-8-retrospective: done
+development_status:
+  # ── Epic 10: Workflow Status & Review Gates ──
+  epic-10: backlog
+  10-1-live-run-status-page: backlog
+  10-2-gate-content-display: backlog
+  10-3-review-controls: backlog
+  10-4-run-history: backlog
+  epic-10-retrospective: optional
 
-  # ── Epic 9: Frontend Foundation & Workflow Trigger ──
-  epic-9: done
-  9-1-nextjs-project-scaffolding: done
-  9-2-mastra-api-client: done
-  9-3-workflow-input-form: done
-  9-4-run-status-page-placeholder: done
-  epic-9-retrospective: done
+  # ── Epic 6: Observability & Grafana LGTM ──
+  epic-6: backlog
+  6-1-spike-mastra-observability-surface-exploration: done
+  6-2-mastra-native-observability-setup: backlog
+  6-3-grafana-lgtm-otel-export: backlog
+  6-4-nfr-12-gap-fill-trace-verification: backlog
+  epic-6-retrospective: optional
+
+  # ── Epic 7: Grafana Observability Dashboards ──
+  epic-7: backlog
+  7-1-spike-grafana-dashboard-design-provisioning-exploration: backlog
+  7-2-grafana-dashboard-implementation: backlog
+  epic-7-retrospective: optional

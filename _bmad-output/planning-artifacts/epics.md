@@ -1026,9 +1026,31 @@ So that I can scope the dashboard stories with precision.
 
 **Given** a running LGTM container with TalkForge traces
 **When** the spike is complete
-**Then** a spike document exists with: verified provisioning approach, sample TraceQL queries, recommended dashboard layout, and refined story breakdown
+**Then** a spike document exists with: verified provisioning approach, sample TraceQL queries, recommended dashboard layout, and concrete panel specifications for Story 7.2
 
-> **Placeholder stories 7.2–7.N** to be defined after spike.
+### Story 7.2: Grafana Dashboard Implementation
+
+As a developer,
+I want provisioned Grafana dashboards that visualise the TalkForge pipeline,
+So that I can monitor workflow health, agent performance, and costs at a glance.
+
+**Depends on:** Story 7.1 spike findings, Epic 6 traces flowing into Grafana LGTM.
+
+**Scope** (refined by spike — candidates from Epic 7 overview):
+- Implement dashboard provisioning pipeline (YAML dashboard-as-code, auto-loaded by LGTM container)
+- Build dashboard panels identified by the spike (e.g., pipeline overview, agent performance, cost tracking, step drilldown, error analysis)
+- Write TraceQL queries for TalkForge span types (AGENT_RUN, MODEL_GENERATION, WORKFLOW_STEP, etc.)
+- Version-control dashboards alongside the codebase
+
+**Acceptance Criteria:**
+
+**Given** a running LGTM container with TalkForge traces from Epic 6
+**When** the developer opens Grafana
+**Then** provisioned dashboards render pipeline metrics (success/failure rates, latency, token usage) from live trace data
+
+**Given** the dashboard YAML files in the repository
+**When** the LGTM container starts
+**Then** dashboards are auto-provisioned without manual import
 
 ---
 
