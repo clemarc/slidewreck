@@ -10,5 +10,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  lgtm:
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3100:3100"   # Loki
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "3200:3000"   # Grafana UI (3200 to avoid conflict with Next.js on 3000)
+
 volumes:
   pgdata:

@@ -1,6 +1,8 @@
 import { Mastra } from '@mastra/core';
 import { createLogger } from '@mastra/core/logger';
 import { Observability, DefaultExporter } from '@mastra/observability';
+import { OtelExporter } from '@mastra/otel-exporter';
+import { OtelBridge } from '@mastra/otel-bridge';
 import { PostgresStore } from '@mastra/pg';
 import { researcher } from './agents/researcher';
 import { architect } from './agents/talk-architect';
@@ -41,7 +43,18 @@ export const mastra = new Mastra({
     configs: {
       default: {
         serviceName: 'slidewreck',
-        exporters: [new DefaultExporter()],
+        exporters: [
+          new DefaultExporter(),
+          new OtelExporter({
+            provider: {
+              custom: {
+                endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+                protocol: 'http/protobuf',
+              },
+            },
+          }),
+        ],
+        bridge: new OtelBridge(),
       },
     },
   }),

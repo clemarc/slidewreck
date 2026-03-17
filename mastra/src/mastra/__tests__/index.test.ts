@@ -16,9 +16,23 @@ vi.mock('@mastra/pg', () => {
 vi.mock('@mastra/core/logger', () => ({
   createLogger: vi.fn().mockReturnValue({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
+vi.mock('@mastra/observability', () => {
+  const DefaultExporter = vi.fn();
+  const Observability = vi.fn();
+  return { DefaultExporter, Observability };
+});
+vi.mock('@mastra/otel-exporter', () => {
+  const OtelExporter = vi.fn();
+  return { OtelExporter };
+});
+vi.mock('@mastra/otel-bridge', () => {
+  const OtelBridge = vi.fn();
+  return { OtelBridge };
+});
 vi.mock('../agents/researcher', () => ({ researcher: {} }));
 vi.mock('../agents/talk-architect', () => ({ architect: {} }));
 vi.mock('../agents/writer', () => ({ writer: {} }));
+vi.mock('../agents/designer', () => ({ designer: {} }));
 vi.mock('../workflows/slidewreck', () => ({ slidewreck: {} }));
 vi.mock('../scorers/hook-strength', () => ({ hookStrengthScorer: { id: 'hook-strength' } }));
 vi.mock('../scorers/narrative-coherence', () => ({
@@ -192,5 +206,98 @@ describe('Mastra vectors configuration', () => {
         }),
       }),
     );
+  });
+});
+
+describe('Mastra observability configuration', () => {
+  afterEach(() => {
+    process.env = { ...originalEnv, DATABASE_URL: 'postgresql://test:test@localhost:5432/test' };
+  });
+
+  it('instantiates DefaultExporter', async () => {
+    vi.resetModules();
+
+    const { DefaultExporter } = await import('@mastra/observability');
+    await import('../index');
+
+    expect(DefaultExporter).toHaveBeenCalled();
+  });
+
+  it('instantiates Observability with serviceName, both exporters, and bridge', async () => {
+    vi.resetModules();
+
+    const { Observability, DefaultExporter } = await import('@mastra/observability');
+    const { OtelExporter } = await import('@mastra/otel-exporter');
+    const { OtelBridge } = await import('@mastra/otel-bridge');
+    await import('../index');
+
+    const defaultExporterInstance = (DefaultExporter as ReturnType<typeof vi.fn>).mock.instances[0];
+    const otelExporterInstance = (OtelExporter as ReturnType<typeof vi.fn>).mock.instances[0];
+    const otelBridgeInstance = (OtelBridge as ReturnType<typeof vi.fn>).mock.instances[0];
+
+    expect(Observability).toHaveBeenCalledWith({
+      configs: {
+        default: {
+          serviceName: 'slidewreck',
+          exporters: [defaultExporterInstance, otelExporterInstance],
+          bridge: otelBridgeInstance,
+        },
+      },
+    });
+  });
+
+  it('passes observability instance to Mastra constructor', async () => {
+    vi.resetModules();
+
+    const { Mastra } = await import('@mastra/core');
+    await import('../index');
+
+    expect(Mastra).toHaveBeenCalledWith(
+      expect.objectContaining({
+        observability: expect.anything(),
+      }),
+    );
+  });
+
+  it('instantiates OtelExporter with correct endpoint and protocol', async () => {
+    vi.resetModules();
+
+    const { OtelExporter } = await import('@mastra/otel-exporter');
+    await import('../index');
+
+    expect(OtelExporter).toHaveBeenCalledWith({
+      provider: {
+        custom: {
+          endpoint: expect.any(String),
+          protocol: 'http/protobuf',
+        },
+      },
+    });
+  });
+
+  it('instantiates OtelBridge', async () => {
+    vi.resetModules();
+
+    const { OtelBridge } = await import('@mastra/otel-bridge');
+    await import('../index');
+
+    expect(OtelBridge).toHaveBeenCalled();
+  });
+
+  it('uses OTEL_EXPORTER_OTLP_ENDPOINT env var for endpoint', async () => {
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://custom:4318';
+    vi.resetModules();
+
+    const { OtelExporter } = await import('@mastra/otel-exporter');
+    await import('../index');
+
+    expect(OtelExporter).toHaveBeenCalledWith({
+      provider: {
+        custom: {
+          endpoint: 'http://custom:4318',
+          protocol: 'http/protobuf',
+        },
+      },
+    });
   });
 });

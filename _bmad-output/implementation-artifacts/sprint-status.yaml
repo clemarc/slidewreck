@@ -51,7 +51,7 @@ development_status:
   epic-10-retrospective: optional
 
   # ── Epic 6: Observability & Grafana LGTM ──
-  epic-6: in-progress
+  epic-6: done
   6-1-spike-mastra-observability-surface-exploration: done
   6-2-mastra-native-observability-setup: done
   6-3-grafana-lgtm-otel-export: done
