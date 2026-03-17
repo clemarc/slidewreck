@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "WebFetch",
+      "WebSearch",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(pnpm *)",
+      "Bash(npx *)",
+      "Bash(npm *)",
+      "Bash(node *)",
+      "Bash(docker *)",
+      "Bash(python3 *)",
+      "Bash(rtk *)",
+      "Bash(source *)",
+      "Bash(timeout *)",
+      "Bash(sleep *)",
+      "Bash(lsof *)",
+      "Bash(wc *)",
+      "Bash(kill *)",
+      "Bash(pkill *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(DATABASE_URL=*)",
+      "mcp__tessl__*",
+      "mcp__chrome-devtools__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo *)"
+    ]
+  }
+}
