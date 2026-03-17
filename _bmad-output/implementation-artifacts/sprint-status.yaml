@@ -43,19 +43,19 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # ── Epic 10: Workflow Status & Review Gates ──
-  epic-10: backlog
-  10-1-live-run-status-page: backlog
-  10-2-gate-content-display: backlog
-  10-3-review-controls: backlog
-  10-4-run-history: backlog
+  epic-10: done
+  10-1-live-run-status-page: done
+  10-2-gate-content-display: done
+  10-3-review-controls: done
+  10-4-run-history: done
   epic-10-retrospective: optional
 
   # ── Epic 6: Observability & Grafana LGTM ──
-  epic-6: backlog
+  epic-6: in-progress
   6-1-spike-mastra-observability-surface-exploration: done
-  6-2-mastra-native-observability-setup: backlog
-  6-3-grafana-lgtm-otel-export: backlog
-  6-4-nfr-12-gap-fill-trace-verification: backlog
+  6-2-mastra-native-observability-setup: done
+  6-3-grafana-lgtm-otel-export: done
+  6-4-nfr-12-gap-fill-trace-verification: done
   epic-6-retrospective: optional
 
   # ── Epic 7: Grafana Observability Dashboards ──

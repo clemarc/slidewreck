@@ -20,6 +20,28 @@ export type RunStatus =
   | 'bailed'
   | 'tripwire';
 
+/** Suspend payload attached to a step when it suspends for human review */
+export interface StepSuspendPayload {
+  agentId: string;
+  gateId: string;
+  output: unknown;
+  summary: string;
+}
+
+/** Per-step status record from the Mastra run API */
+export interface StepState {
+  status: RunStatus;
+  output?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  suspendPayload?: StepSuspendPayload;
+  resumePayload?: Record<string, unknown>;
+  error?: { message: string; stack?: string };
+  startedAt: number;
+  endedAt: number;
+  suspendedAt?: number;
+  resumedAt?: number;
+}
+
 export interface WorkflowRun {
   runId: string;
   workflowName?: string;
@@ -29,7 +51,7 @@ export interface WorkflowRun {
   resourceId?: string;
   result?: unknown;
   error?: unknown;
-  steps?: Record<string, unknown>;
+  steps?: Record<string, StepState>;
 }
 
 export class MastraClient {
@@ -75,6 +97,18 @@ export class MastraClient {
 
   async getRunStatus(workflowId: string, runId: string): Promise<WorkflowRun> {
     const res = await fetch(`${this.baseUrl}/api/workflows/${workflowId}/runs/${runId}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new MastraApiError(res.status, body || res.statusText);
+    }
+    return res.json();
+  }
+
+  async listRuns(workflowId: string): Promise<{ runs: WorkflowRun[]; total: number }> {
+    const res = await fetch(`${this.baseUrl}/api/workflows/${workflowId}/runs`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });

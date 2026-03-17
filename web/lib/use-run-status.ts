@@ -18,6 +18,8 @@ export interface UseRunStatusResult {
   run: WorkflowRun | null;
   error: string | null;
   loading: boolean;
+  /** Trigger an immediate re-fetch (e.g., after resuming a gate) and restart polling */
+  refetch: () => void;
 }
 
 export function useRunStatus(workflowId: string, runId: string): UseRunStatusResult {
@@ -64,7 +66,15 @@ export function useRunStatus(workflowId: string, runId: string): UseRunStatusRes
     };
   }, [fetchStatus]);
 
-  return { run, error, loading };
+  const refetch = useCallback(() => {
+    fetchStatus();
+    // Restart polling in case it was stopped (e.g., on error)
+    if (!intervalRef.current) {
+      intervalRef.current = setInterval(fetchStatus, POLL_INTERVAL_MS);
+    }
+  }, [fetchStatus]);
+
+  return { run, error, loading, refetch };
 }
 
 export { TERMINAL_STATUSES, POLL_INTERVAL_MS };
