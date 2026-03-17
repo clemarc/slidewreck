@@ -410,7 +410,6 @@ The frontend communicates with the Mastra backend via REST on `localhost:4111`:
 
 **Verified against:** `@mastra/server@1.8.0` (Epic 9, 2026-03-16). OpenAPI spec from `localhost:4111` is the authoritative source — re-verify on Mastra upgrades.
 
-**Spike note:** Exact endpoint shapes for run status polling must be verified against the installed Mastra version during the Epic 9 pre-sprint spike.
 
 **DeckSpec Browser Rendering (Epic 11):**
 
