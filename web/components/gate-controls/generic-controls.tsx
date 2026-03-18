@@ -3,14 +3,14 @@
 import { useState, useRef } from 'react';
 import { MastraClient, MastraApiError } from '@/lib/mastra-client';
 
-export interface ReviewControlsProps {
+export interface GenericControlsProps {
   workflowId: string;
   runId: string;
   stepId: string;
   onResumed: () => void;
 }
 
-export function ReviewControls({ workflowId, runId, stepId, onResumed }: ReviewControlsProps) {
+export function GenericControls({ workflowId, runId, stepId, onResumed }: GenericControlsProps) {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');

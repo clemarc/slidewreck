@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRunStatus, TERMINAL_STATUSES } from '@/lib/use-run-status';
 import { StepProgress } from '@/components/step-progress';
 import { GateContent } from '@/components/gate-content';
-import { ReviewControls } from '@/components/review-controls';
+import { GateControls } from '@/components/gate-controls';
 import { findSuspendedStep } from '@/lib/gate-helpers';
 import type { RunStatus } from '@/lib/mastra-client';
 
@@ -109,10 +109,12 @@ export default function RunStatusPage() {
                       summary={gate.suspendPayload.summary}
                     />
                   </div>
-                  <ReviewControls
+                  <GateControls
+                    gateId={gate.suspendPayload.gateId ?? gate.stepId}
                     workflowId="slidewreck"
                     runId={runId}
                     stepId={gate.stepId}
+                    output={gate.suspendPayload.output}
                     onResumed={refetch}
                   />
                 </div>

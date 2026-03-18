@@ -1264,6 +1264,39 @@ So that I can revisit previous talks.
 **Then** past runs are listed with topic, date, format, and status
 **And** each entry links to the run detail page
 
+### Story 10.5: Gate-Specific Review Controls
+
+As a speaker,
+I want each review gate to have controls tailored to what that gate needs,
+So that I can provide the right kind of input at each stage (not just approve/reject).
+
+**Acceptance Criteria:**
+
+**Given** the workflow is suspended at the `collect-references` gate
+**When** the speaker views the gate
+**Then** a form allows adding/removing reference materials (file path or URL per row)
+**And** a "Skip" button resumes with an empty materials array
+**And** a "Submit" button resumes with `{materials: ReferenceMaterial[]}`
+
+**Given** the workflow is suspended at the `architect-structure` gate
+**When** the speaker views the 3 structure options
+**Then** each option is selectable (radio/card)
+**And** the selected option is communicated in the feedback field on approve
+**And** reject still triggers regeneration with feedback
+
+**Given** the workflow is suspended at the `review-slides` gate
+**When** the speaker views the DeckSpec
+**Then** approve/reject + feedback are available (as today)
+**And** an optional DeckSpec editor allows sending back a modified `deckSpec` on resume
+
+**Given** gates that already work (`review-research`, `review-script`)
+**When** the speaker interacts with them
+**Then** behaviour is unchanged (approve/reject + feedback textarea)
+
+**Given** any gate resume payload
+**When** submitted to the Mastra API
+**Then** it passes the backend Zod schema validation for that gate's resume schema
+
 ## Epic 11: Presentation Viewer
 
 Speaker can view generated slides as an interactive deck in the browser. The visual payoff.
