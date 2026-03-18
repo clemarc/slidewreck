@@ -57,7 +57,7 @@ development_status:
   6-2-mastra-native-observability-setup: done
   6-3-grafana-lgtm-otel-export: done
   6-4-nfr-12-gap-fill-trace-verification: done
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
 
   # ── Epic 7: Grafana Observability Dashboards ──
   epic-7: backlog
