@@ -4,6 +4,8 @@ import { Observability, DefaultExporter } from '@mastra/observability';
 import { OtelExporter } from '@mastra/otel-exporter';
 import { OtelBridge } from '@mastra/otel-bridge';
 import { PostgresStore } from '@mastra/pg';
+import { trace } from '@opentelemetry/api';
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base';
 import { researcher } from './agents/researcher';
 import { architect } from './agents/talk-architect';
 import { writer } from './agents/writer';
@@ -29,6 +31,11 @@ export function parseLogLevel(value: string | undefined): LogLevel {
   if (!value) return 'debug';
   return LOG_LEVEL_MAP[value.toLowerCase()] ?? 'debug';
 }
+
+// Register a global TracerProvider so OtelBridge produces valid span/trace IDs.
+// Without this, trace.getTracer() returns a NoopTracer with all-zero IDs.
+// BasicTracerProvider with no processors — only used for ID generation, not export.
+trace.setGlobalTracerProvider(new BasicTracerProvider());
 
 export const mastra = new Mastra({
   storage: new PostgresStore({

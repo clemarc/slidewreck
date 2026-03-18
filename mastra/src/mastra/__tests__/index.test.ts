@@ -5,7 +5,9 @@ const originalEnv = { ...process.env };
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
 
 vi.mock('@mastra/core', () => {
-  const Mastra = vi.fn();
+  const Mastra = vi.fn().mockImplementation(function () {
+    callOrder.push('Mastra');
+  });
   return { Mastra };
 });
 vi.mock('@mastra/pg', () => {
@@ -28,6 +30,16 @@ vi.mock('@mastra/otel-exporter', () => {
 vi.mock('@mastra/otel-bridge', () => {
   const OtelBridge = vi.fn();
   return { OtelBridge };
+});
+const callOrder: string[] = [];
+vi.mock('@opentelemetry/api', () => ({
+  trace: {
+    setGlobalTracerProvider: vi.fn(() => callOrder.push('setGlobalTracerProvider')),
+  },
+}));
+vi.mock('@opentelemetry/sdk-trace-base', () => {
+  class BasicTracerProvider {}
+  return { BasicTracerProvider };
 });
 vi.mock('../agents/researcher', () => ({ researcher: {} }));
 vi.mock('../agents/talk-architect', () => ({ architect: {} }));
@@ -206,6 +218,25 @@ describe('Mastra vectors configuration', () => {
         }),
       }),
     );
+  });
+});
+
+describe('OpenTelemetry TracerProvider registration', () => {
+  beforeEach(() => {
+    callOrder.length = 0;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv, DATABASE_URL: 'postgresql://test:test@localhost:5432/test' };
+  });
+
+  it('registers a BasicTracerProvider before Mastra constructor', async () => {
+    vi.resetModules();
+    await import('../index');
+
+    expect(callOrder).toContain('setGlobalTracerProvider');
+    expect(callOrder).toContain('Mastra');
+    expect(callOrder.indexOf('setGlobalTracerProvider')).toBeLessThan(callOrder.indexOf('Mastra'));
   });
 });
 
