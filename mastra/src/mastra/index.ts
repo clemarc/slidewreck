@@ -32,6 +32,10 @@ export function parseLogLevel(value: string | undefined): LogLevel {
   return LOG_LEVEL_MAP[value.toLowerCase()] ?? 'debug';
 }
 
+function appendTracesPath(endpoint: string): string {
+  return endpoint.includes('/v1/traces') ? endpoint : `${endpoint}/v1/traces`;
+}
+
 // Register a global TracerProvider so OtelBridge produces valid span/trace IDs.
 // Without this, trace.getTracer() returns a NoopTracer with all-zero IDs.
 // BasicTracerProvider with no processors — only used for ID generation, not export.
@@ -55,7 +59,7 @@ export const mastra = new Mastra({
           new OtelExporter({
             provider: {
               custom: {
-                endpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318',
+                endpoint: appendTracesPath(process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318'),
                 protocol: 'http/protobuf',
               },
             },
