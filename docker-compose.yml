@@ -17,6 +17,8 @@ services:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
       - "3200:3000"   # Grafana UI (3200 to avoid conflict with Next.js on 3000)
+    environment:
+      ENABLE_LOGS_ALL: true
 
 volumes:
   pgdata:
