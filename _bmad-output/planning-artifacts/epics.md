@@ -16,13 +16,15 @@ This document provides the complete epic and story breakdown for bmad-mastra-pre
 
 Epics 1–5 execute sequentially. After Epic 5, the rendering and frontend epics (8, 9) take priority. Epic 6 (observability + Grafana LGTM) runs in parallel with the frontend chain. Epic 7 (external OTEL export) has been absorbed into Epic 6 — see AD-6 in architecture.md.
 
-**1 → 2 → 3 → 4 → 5 → 8 + 9 + 6-spike (parallel) → 10 + 6 (parallel) → 11 + 12 + 7 (parallel) → 13 → 14**
+**1 → 2 → 3 → 4 → 5 → 8 + 9 + 6-spike (parallel) → 10 + 6 + 7 (parallel) → 11 + 10b (parallel) → 12 + 13 (parallel) → 14**
 
 - Epics 8 (CLI rendering) and 9 (FE foundation) are independent and can run in parallel
 - Epic 6 spike runs during the 8+9 sprint; Epic 6 implementation runs parallel with Epic 10
-- Epic 7 (Grafana dashboards) runs parallel with Epics 11+12 once traces are flowing from Epic 6
-- Epics 9 → 10 → 11/12 form the frontend chain (10 and 11 are independent of each other; 12 builds on both)
-- Epics 13–14 (personalization, coaching) are backend Mastra work deferred until the frontend is usable
+- Epic 7 (Grafana dashboards) runs parallel with Epic 10 (done)
+- Epics 9 → 10 → 11/10b form the frontend chain; 10b (gate UX polish) is independent of 11 (different pages)
+- Epic 12 (streaming/export/sharing) waits for Epic 11 (3 of 4 stories need the viewer)
+- Epic 13 (style learning) is pure backend — runs parallel with 12 once the 11+10b sprint completes. Requires a Mastra Memory API spike before sprint planning.
+- Epic 14 (coaching/packaging) follows after 12+13
 
 ## Requirements Inventory
 
@@ -215,6 +217,11 @@ Next.js app scaffolding, Mastra API client, input form, and workflow trigger.
 Live run status, gate content display, review controls, and run history.
 **FRs covered:** FR-30
 **Capabilities:** Polling/SSE, gate interaction UI
+
+### Epic 10b: Gate & Step UX Polish
+Tailored visual interactions at each review gate (side-by-side architect comparison, rich content rendering) and a step output viewer for revisiting completed step data.
+**Depends on:** Epic 10. Independent of Epic 11.
+**Capabilities:** React comparison components, collapsible content rendering, step drilldown UI
 
 ### Epic 11: Presentation Viewer
 Interactive slide deck viewer in the browser with layout components and client-side Mermaid.
@@ -1296,6 +1303,80 @@ So that I can provide the right kind of input at each stage (not just approve/re
 **Given** any gate resume payload
 **When** submitted to the Mastra API
 **Then** it passes the backend Zod schema validation for that gate's resume schema
+
+## Epic 10b: Gate & Step UX Polish
+
+Speaker gets tailored, visual interactions at each review gate and can revisit any completed step's output, so the review experience matches the quality of the generated content.
+
+**Depends on:** Epic 10 (existing gate infrastructure). Independent of Epic 11 (different pages).
+
+### Story 10b.1: Side-by-Side Architect Gate Comparison
+
+As a speaker,
+I want to see the three structure proposals side by side and click to select one,
+So that I can compare options visually instead of reading sequentially and typing my choice.
+
+**Acceptance Criteria:**
+
+**Given** the workflow is suspended at the `architect-structure` gate
+**When** the speaker views the gate
+**Then** three cards are laid out horizontally, each showing the structure title, section breakdown with timing, and rationale
+**And** the speaker can click a card to select it (selected card gets a highlight border)
+**And** a feedback textarea is available below for optional notes (e.g., "but swap sections 3 and 4")
+
+**Given** the speaker clicks a card and submits
+**When** the gate is resumed
+**Then** the payload includes the selected option identifier and any feedback text
+**And** the payload passes the backend Zod schema validation for the architect gate resume schema
+
+**Given** the speaker clicks "Reject" instead
+**When** the gate is resumed with rejection
+**Then** the existing regeneration flow triggers with the feedback text
+
+### Story 10b.2: Gate Content Rendering Polish
+
+As a speaker,
+I want each gate to render its content in a readable, structured format,
+So that I can review research, scripts, and slides without parsing raw text or JSON.
+
+**Acceptance Criteria:**
+
+**Given** the workflow is suspended at the `review-research` gate
+**When** the speaker views the gate content
+**Then** the research brief is rendered as formatted markdown with collapsible sections (sources, key findings, statistics, suggested angles)
+
+**Given** the workflow is suspended at the `review-script` gate
+**When** the speaker views the gate content
+**Then** the speaker notes are rendered with section headings, timing annotations, and pause markers visually distinct from body text
+
+**Given** the workflow is suspended at the `review-slides` gate
+**When** the speaker views the gate content
+**Then** slides are shown as thumbnail preview cards (one per slide) with layout type and title visible — not raw DeckSpec JSON
+
+**Given** shared rendering components are built for gate content
+**When** Story 10b.3 (step output viewer) is implemented
+**Then** the same rendering components are reusable for displaying completed step outputs
+
+### Story 10b.3: Completed Step Output Viewer
+
+As a speaker,
+I want to click on any completed step in the run status page and see its full output,
+So that I can revisit research, structure, script, or slides at any point after approval.
+
+**Acceptance Criteria:**
+
+**Given** a workflow run with completed steps
+**When** the speaker views the run status page (`/run/:runId`)
+**Then** each completed step is clickable or expandable
+**And** clicking opens a panel or navigates to `/run/:runId/step/:stepName` showing the step's full output
+
+**Given** the step output is displayed
+**When** the speaker views it
+**Then** the output is rendered using the same components from Story 10b.2 (formatted markdown, structured sections, slide thumbnails — not raw JSON)
+
+**Given** a step that is pending or in-progress
+**When** the speaker views the run status page
+**Then** that step is not clickable and shows only its status indicator
 
 ## Epic 11: Presentation Viewer
 
