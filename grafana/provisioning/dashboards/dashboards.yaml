@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: "TalkForge"
+    orgId: 1
+    folder: "TalkForge"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /otel-lgtm/talkforge-dashboards
+      foldersFromFilesStructure: false

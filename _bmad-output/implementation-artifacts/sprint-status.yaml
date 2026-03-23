@@ -60,7 +60,7 @@ development_status:
   epic-6-retrospective: done
 
   # ── Epic 7: Grafana Observability Dashboards ──
-  epic-7: backlog
-  7-1-spike-grafana-dashboard-design-provisioning-exploration: backlog
-  7-2-grafana-dashboard-implementation: backlog
+  epic-7: done
+  7-1-spike-grafana-dashboard-design-provisioning-exploration: done
+  7-2-grafana-dashboard-implementation: done
   epic-7-retrospective: optional

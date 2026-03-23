@@ -325,7 +325,7 @@ describe('Mastra observability configuration', () => {
     expect(OtelExporter).toHaveBeenCalledWith({
       provider: {
         custom: {
-          endpoint: 'http://custom:4318',
+          endpoint: 'http://custom:4318/v1/traces',
           protocol: 'http/protobuf',
         },
       },

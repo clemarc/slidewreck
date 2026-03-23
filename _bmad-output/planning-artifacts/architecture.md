@@ -241,6 +241,26 @@ src/
 - `OtelBridge` enables OTEL-instrumented code (HTTP clients, DB queries) inside agents to nest correctly in Grafana trace trees
 - Env: `OTEL_EXPORTER_OTLP_ENDPOINT` (defaults to `http://localhost:4318`)
 
+**Grafana Dashboard-as-Code (Epic 7):**
+- Dashboards are version-controlled JSON files in `grafana/dashboards/`
+- Provisioning config: `grafana/provisioning/dashboards/dashboards.yaml` — Grafana auto-loads dashboards on startup
+- Docker Compose volume mounts: `./grafana/provisioning/dashboards` → `/etc/grafana/provisioning/dashboards`, `./grafana/dashboards` → `/var/lib/grafana/dashboards`
+- LGTM image pre-configures Tempo datasource with UID `tempo` — no datasource provisioning needed
+- `allowUiUpdates: false` enforces dashboard-as-code (UI edits rejected)
+- Dashboard queries use GenAI semantic conventions from `@mastra/otel-exporter`:
+
+| Mastra Span Type | OTEL Attribute (`gen_ai.operation_name`) | Entity Name Attribute |
+|------------------|----------------------------------------|----------------------|
+| WORKFLOW_RUN | `invoke_workflow` | `name` (span name) |
+| AGENT_RUN | `invoke_agent` | `gen_ai.agent.name` |
+| MODEL_GENERATION | `chat` | `gen_ai.request.model` |
+| TOOL_CALL | `execute_tool` | `gen_ai.tool.name` |
+| WORKFLOW_STEP | `workflow_step` | `name` (span name) |
+| WORKFLOW_WAIT_EVENT | `workflow_wait_event` | `name` (span name) |
+
+- Token usage attributes on MODEL_GENERATION spans: `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.usage.cached_input_tokens`, `gen_ai.usage.reasoning_tokens`
+- Adding a panel: edit `grafana/dashboards/talkforge-pipeline.json`, increment version, restart LGTM container (or wait 10s for auto-reload)
+
 **Mastra Tables (auto-created):**
 - `mastra_workflow_snapshot` — suspend/resume state
 - `mastra_threads` / `mastra_messages` — conversation memory

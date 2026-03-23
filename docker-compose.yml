@@ -19,6 +19,11 @@ services:
       - "3200:3000"   # Grafana UI (3200 to avoid conflict with Next.js on 3000)
     environment:
       ENABLE_LOGS_ALL: true
+    volumes:
+      - ./grafana/provisioning/dashboards/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/talkforge.yaml
+      - ./grafana/dashboards:/otel-lgtm/talkforge-dashboards
+      - lgtmdata:/data
 
 volumes:
   pgdata:
+  lgtmdata:
