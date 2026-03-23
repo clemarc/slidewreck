@@ -597,10 +597,13 @@ Every composite step or gate using `suspend()`/`resume()` MUST handle all four r
 
 **Testing requirement:** Each path MUST have a dedicated test case. Use the mock `createStep()` pattern to simulate `resumeData` for each path.
 
+**UI story cross-reference (E10-1):** For each gate in the workflow, enumerate the backend Zod resume schema and verify the UI story's acceptance criteria cover that exact shape. Generic approve/reject controls are insufficient — gates like `collect-references` expect `{materials: [...]}`, `architect-structure` needs option selection, and `review-slides` needs optional DeckSpec editing. Missing this step caused a mid-sprint change proposal in Epic 10.
+
 **Common pitfalls:**
 - Forgetting to check `suspendData.output` on approval resume (data was stored in the suspend payload)
 - Not distinguishing between `undefined` feedback and empty string feedback
 - Assuming rejection always has feedback — handle the no-feedback rejection path
+- Writing UI stories with generic resume controls without cross-referencing per-gate Zod schemas
 
 ### No Unsafe Type Coercion Rule
 
@@ -620,6 +623,25 @@ if (!isExpectedType(someValue)) {
 ```
 
 **Exception:** The only acceptable use of `as` is for narrowing from a known-compatible type (e.g., `as WorkflowInput` when `getInitData()` returns a generic type that is known to be `WorkflowInput` by workflow context). Even then, prefer `getInitData<WorkflowInput>()` if the API supports generics.
+
+### NFR Acceptance Criteria Guidelines
+
+Non-functional requirements in stories MUST have acceptance criteria as concrete and testable as functional ones. Vague NFRs ("should be fast", "must handle errors") cannot be verified by tests or agents.
+
+**Required specificity by category:**
+
+| NFR Category | Must Specify | Example |
+|-------------|-------------|---------|
+| **Performance** | Numeric threshold + measurement method | "Step completes in <60s measured by workflow step duration log" |
+| **Logging** | Log level, structured fields, message pattern | "Each tool call logs at INFO with `{tool, duration_ms, token_count}`" |
+| **Retry/Resilience** | Max attempts, backoff strategy, failure outcome | "3 retries with exponential backoff (1s, 2s, 4s); on exhaustion return partial result with warning" |
+| **Error Handling** | Error classification + behaviour per class | "Timeout → retry; 4xx → fail with user message; 5xx → retry then degrade" |
+| **Concurrency** | Parallelism bounds, resource limits | "Max 3 concurrent agent calls; queue excess requests" |
+
+**Checklist for story authors:**
+1. Can this NFR be verified by an automated test? If not, rewrite it.
+2. Does the acceptance criterion include a numeric threshold or enumerated behaviour?
+3. Is the measurement method specified (log assertion, timing check, error injection)?
 
 ### Known Limitations
 
@@ -671,6 +693,7 @@ Anthropic has no embedding API. Current implementation uses OpenAI `text-embeddi
 - **Mastra API Verification Checklist** must be followed when introducing any new Mastra API
 - **Suspend/Resume Path Checklist** must be satisfied for all steps using `suspend()`/`resume()`
 - **No Unsafe Type Coercion Rule** must be followed — no `as unknown as` patterns
+- **Dev Agent Record Enforcement (E10-2):** Code review must verify that the Dev Agent Record sections are filled before marking a story "done": completion notes (non-empty summary of what was implemented), file list (every new/modified/deleted file, cross-referenced with git), and test counts. Empty records lose implementation context for retrospectives — Stories 10-1 through 10-4 shipped with blank records.
 
 ## Project Structure & Boundaries
 

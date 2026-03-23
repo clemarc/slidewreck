@@ -1,12 +1,12 @@
-# Sprint: Epic 10 + Epic 6 + Epic 7 (parallel)
-# generated: 2026-03-17
+# Sprint: Epic 11 + Epic 10b (parallel)
+# generated: 2026-03-23
 # project: bmad-mastra-presentation
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
 #
 # PRIOR SPRINTS:
 #   Epic 1 (done), Epic 2 (done), Epic 3 (done), Epic 4 (done), Epic 5 (done)
-#   Epic 8 (done), Epic 9 (done)
+#   Epic 8 (done), Epic 9 (done), Epic 10 (done), Epic 6 (done), Epic 7 (done)
 #
 # SPIKES (completed):
 #   spike-epic-5-visual-presentation-design: done
@@ -14,6 +14,7 @@
 #   spike-epic-8-cli-deck-rendering: done
 #   spike-epic-9-frontend-architecture: done — decisions in architecture.md
 #   spike-epic-10-workflow-status-review-gates: done — all APIs live-verified
+#   spike-epic-11-presentation-viewer: done — Pure React + Tailwind confirmed
 #
 # STATUS DEFINITIONS:
 # ==================
@@ -24,43 +25,55 @@
 #   Stories -> Retrospective -> Spike for next epic -> Close sprint
 #
 # EXECUTION ORDER (remaining):
-#   10 + 6 + 7 (parallel, this sprint) -> 11 + 12 (parallel) -> 13 -> 14
+#   11 + 10b (parallel, this sprint) -> 12 + 13 (parallel) -> 14
 #
-# RETRO ACTION ITEMS — from E8+E9 retros (2026-03-16):
-#   E9-1: Add "fetch OpenAPI spec" step to spike checklist — DONE (HIGH)
-#   E9-2: Update architecture.md Mastra REST API table with correct endpoints — DONE (HIGH)
-#   E9-3: Add pnpm test:integration + MastraClient smoke tests — DONE (MEDIUM)
-#   E8-1: Add E2E integration test with real workflow output — DONE (HIGH)
-#   E8-2: Document render-deck SVG convention in architecture.md — DONE (MEDIUM)
+# RETRO ACTION ITEMS — from E10 retro (2026-03-18):
+#   E10-1: Resume schema checklist enforcement — HIGH
+#   E10-2: Dev Agent Record enforcement — MEDIUM
 #   E4-1: Extract reusable workflow patterns — CARRY (low ROI)
 #   E4-2: Monitor getSteps() fix in @mastra/core — CARRY (no upstream fix)
 
-generated: 2026-03-17
+generated: 2026-03-23
 project: bmad-mastra-presentation
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  # ── Epic 10: Workflow Status & Review Gates ──
-  epic-10: done
-  10-1-live-run-status-page: done
-  10-2-gate-content-display: done
-  10-3-review-controls: done
-  10-4-run-history: done
-  10-5-gate-specific-review-controls: done
-  epic-10-retrospective: done
+  # ── Epic 11: Presentation Viewer ──
+  epic-11: backlog
+  11-1-slide-renderer-framework: backlog
+  11-2-layout-components: backlog
+  11-3-colour-palette-theming: backlog
+  11-4-client-side-mermaid-rendering: backlog
+  epic-11-retrospective: optional
 
-  # ── Epic 6: Observability & Grafana LGTM ──
-  epic-6: done
-  6-1-spike-mastra-observability-surface-exploration: done
-  6-2-mastra-native-observability-setup: done
-  6-3-grafana-lgtm-otel-export: done
-  6-4-nfr-12-gap-fill-trace-verification: done
-  epic-6-retrospective: done
+  # ── Epic 10b: Gate & Step UX Polish ──
+  epic-10b: backlog
+  10b-1-side-by-side-architect-gate-comparison: backlog
+  10b-2-gate-content-rendering-polish: backlog
+  10b-3-completed-step-output-viewer: backlog
+  epic-10b-retrospective: optional
 
-  # ── Epic 7: Grafana Observability Dashboards ──
-  epic-7: done
-  7-1-spike-grafana-dashboard-design-provisioning-exploration: done
-  7-2-grafana-dashboard-implementation: done
-  epic-7-retrospective: done
+  # ── Epic 12: Streaming, Export & Sharing ──
+  epic-12: backlog
+  12-1-streaming-workflow-progress: backlog
+  12-2-pdf-export-from-browser: backlog
+  12-3-shareable-deck-urls: backlog
+  12-4-speaker-notes-presenter-mode: backlog
+  epic-12-retrospective: optional
+
+  # ── Epic 13: Style Learning & Personalization ──
+  epic-13: backlog
+  13-1-cold-start-edit-diff-capture-at-gate-3: backlog
+  13-2-style-learner-workflow-step: backlog
+  13-3-style-augmented-writing: backlog
+  13-4-cross-session-metadata-data-management: backlog
+  epic-13-retrospective: optional
+
+  # ── Epic 14: Complete Talk Package & Coaching ──
+  epic-14: backlog
+  14-1-coach-agent-past-talk-rag-tool: backlog
+  14-2-preparation-package-generation: backlog
+  14-3-output-packaging-download: backlog
+  epic-14-retrospective: optional
