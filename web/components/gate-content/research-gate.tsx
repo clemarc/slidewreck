@@ -1,5 +1,7 @@
 'use client';
 
+import { CollapsibleSection } from '@/components/content-renderers';
+
 interface Finding {
   finding: string;
   source: string;
@@ -7,7 +9,7 @@ interface Finding {
   sourceType?: string;
 }
 
-interface ResearchOutput {
+export interface ResearchOutput {
   keyFindings?: Finding[];
   sources?: Array<{ url: string; title: string; relevance: string }>;
   suggestedAngles?: string[];
@@ -21,9 +23,8 @@ export function ResearchGate({ output }: { output: unknown }) {
   return (
     <div className="space-y-4">
       {data.keyFindings && data.keyFindings.length > 0 && (
-        <section>
-          <h3 className="text-sm font-semibold text-gray-700">Key Findings</h3>
-          <ul className="mt-2 space-y-2">
+        <CollapsibleSection title="Key Findings" count={data.keyFindings.length} defaultOpen>
+          <ul className="space-y-2">
             {data.keyFindings.map((f, i) => (
               <li key={i} className="rounded border border-gray-100 bg-gray-50 p-3 text-sm">
                 <p className="font-medium">{f.finding}</p>
@@ -36,24 +37,73 @@ export function ResearchGate({ output }: { output: unknown }) {
               </li>
             ))}
           </ul>
-        </section>
+        </CollapsibleSection>
       )}
 
       {data.suggestedAngles && data.suggestedAngles.length > 0 && (
-        <section>
-          <h3 className="text-sm font-semibold text-gray-700">Suggested Angles</h3>
-          <ul className="mt-2 list-inside list-disc text-sm text-gray-600">
+        <CollapsibleSection title="Suggested Angles" count={data.suggestedAngles.length} defaultOpen>
+          <ul className="list-inside list-disc text-sm text-gray-600">
             {data.suggestedAngles.map((angle, i) => (
               <li key={i}>{angle}</li>
             ))}
           </ul>
-        </section>
+        </CollapsibleSection>
       )}
 
-      {data.sources && (
-        <p className="text-xs text-gray-400">
-          {data.sources.length} source{data.sources.length !== 1 ? 's' : ''} found
-        </p>
+      {data.statistics && data.statistics.length > 0 && (
+        <CollapsibleSection title="Statistics" count={data.statistics.length}>
+          <ul className="space-y-2">
+            {data.statistics.map((stat, i) => (
+              <li key={i} className="rounded border border-gray-100 bg-gray-50 p-2 text-sm">
+                <span className="font-semibold text-gray-800">{stat.value}</span>
+                <span className="ml-2 text-gray-500">{stat.context}</span>
+                <p className="mt-1 text-xs text-gray-400">Source: {stat.source}</p>
+              </li>
+            ))}
+          </ul>
+        </CollapsibleSection>
+      )}
+
+      {data.existingTalks && data.existingTalks.length > 0 && (
+        <CollapsibleSection title="Existing Talks" count={data.existingTalks.length}>
+          <ul className="space-y-2">
+            {data.existingTalks.map((talk, i) => (
+              <li key={i} className="rounded border border-gray-100 bg-gray-50 p-2 text-sm">
+                <p className="font-medium text-gray-800">{talk.title}</p>
+                <p className="text-xs text-gray-500">by {talk.speaker}</p>
+                {talk.summary && <p className="mt-1 text-xs text-gray-400">{talk.summary}</p>}
+                <a
+                  href={talk.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-xs text-blue-500 hover:underline"
+                >
+                  View talk &rarr;
+                </a>
+              </li>
+            ))}
+          </ul>
+        </CollapsibleSection>
+      )}
+
+      {data.sources && data.sources.length > 0 && (
+        <CollapsibleSection title="Sources" count={data.sources.length}>
+          <ul className="space-y-1">
+            {data.sources.map((src, i) => (
+              <li key={i} className="text-xs">
+                <a
+                  href={src.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  {src.title || src.url}
+                </a>
+                <span className="ml-2 text-gray-400">{src.relevance}</span>
+              </li>
+            ))}
+          </ul>
+        </CollapsibleSection>
       )}
     </div>
   );

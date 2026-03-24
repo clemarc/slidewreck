@@ -18,10 +18,11 @@ export interface GateControlsProps {
   runId: string;
   stepId: string;
   output: unknown;
+  selectedIndex?: number | null;
   onResumed: () => void;
 }
 
-export function GateControls({ gateId, workflowId, runId, stepId, output, onResumed }: GateControlsProps) {
+export function GateControls({ gateId, workflowId, runId, stepId, output, selectedIndex, onResumed }: GateControlsProps) {
   const controlType = GATE_CONTROLS_MAP[gateId];
 
   switch (controlType) {
@@ -41,6 +42,7 @@ export function GateControls({ gateId, workflowId, runId, stepId, output, onResu
           runId={runId}
           stepId={stepId}
           output={output}
+          selectedIndex={selectedIndex}
           onResumed={onResumed}
         />
       );

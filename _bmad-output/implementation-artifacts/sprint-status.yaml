@@ -41,18 +41,18 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # ── Epic 11: Presentation Viewer ──
-  epic-11: backlog
-  11-1-slide-renderer-framework: backlog
-  11-2-layout-components: backlog
-  11-3-colour-palette-theming: backlog
-  11-4-client-side-mermaid-rendering: backlog
+  epic-11: done
+  11-1-slide-renderer-framework: done
+  11-2-layout-components: done
+  11-3-colour-palette-theming: done
+  11-4-client-side-mermaid-rendering: done
   epic-11-retrospective: optional
 
   # ── Epic 10b: Gate & Step UX Polish ──
-  epic-10b: backlog
-  10b-1-side-by-side-architect-gate-comparison: backlog
-  10b-2-gate-content-rendering-polish: backlog
-  10b-3-completed-step-output-viewer: backlog
+  epic-10b: done
+  10b-1-side-by-side-architect-gate-comparison: done
+  10b-2-gate-content-rendering-polish: done
+  10b-3-completed-step-output-viewer: done
   epic-10b-retrospective: optional
 
   # ── Epic 12: Streaming, Export & Sharing ──

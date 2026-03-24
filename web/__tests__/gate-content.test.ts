@@ -6,8 +6,8 @@ describe('GATE_RENDERERS', () => {
     expect(GATE_RENDERERS['review-research']).toBeDefined();
   });
 
-  it('has a renderer for architect-structure', () => {
-    expect(GATE_RENDERERS['architect-structure']).toBeDefined();
+  it('architect-structure uses special-case rendering (not in GATE_RENDERERS)', () => {
+    expect(GATE_RENDERERS['architect-structure']).toBeUndefined();
   });
 
   it('has a renderer for review-script', () => {
@@ -22,7 +22,7 @@ describe('GATE_RENDERERS', () => {
     expect(GATE_RENDERERS['collect-references']).toBeUndefined();
   });
 
-  it('has exactly 4 gate renderers', () => {
-    expect(Object.keys(GATE_RENDERERS)).toHaveLength(4);
+  it('has exactly 3 gate renderers (architect-structure handled separately)', () => {
+    expect(Object.keys(GATE_RENDERERS)).toHaveLength(3);
   });
 });

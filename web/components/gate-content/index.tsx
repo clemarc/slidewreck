@@ -8,18 +8,26 @@ import { ReferencesGate } from './references-gate';
 
 const GATE_RENDERERS: Record<string, React.ComponentType<{ output: unknown }>> = {
   'review-research': ResearchGate,
-  'architect-structure': StructureGate,
   'review-script': ScriptGate,
   'review-slides': SlidesGate,
+};
+
+const GATE_LABELS: Record<string, string> = {
+  'review-research': 'Research Review',
+  'architect-structure': 'Structure Review',
+  'review-script': 'Script Review',
+  'review-slides': 'Slide Review',
 };
 
 export interface GateContentProps {
   gateId: string;
   output: unknown;
   summary: string;
+  selectedIndex?: number | null;
+  onSelect?: (index: number) => void;
 }
 
-export function GateContent({ gateId, output, summary }: GateContentProps) {
+export function GateContent({ gateId, output, summary, selectedIndex, onSelect }: GateContentProps) {
   if (gateId === 'collect-references') {
     return (
       <div className="space-y-3">
@@ -34,14 +42,12 @@ export function GateContent({ gateId, output, summary }: GateContentProps) {
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-semibold text-gray-700">
-        {gateId === 'review-research' && 'Research Review'}
-        {gateId === 'architect-structure' && 'Structure Review'}
-        {gateId === 'review-script' && 'Script Review'}
-        {gateId === 'review-slides' && 'Slide Review'}
-        {!GATE_RENDERERS[gateId] && gateId !== 'collect-references' && `Gate: ${gateId}`}
+        {GATE_LABELS[gateId] ?? `Gate: ${gateId}`}
       </h2>
       <p className="text-xs text-gray-500">{summary}</p>
-      {Renderer ? (
+      {gateId === 'architect-structure' ? (
+        <StructureGate output={output} selectedIndex={selectedIndex} onSelect={onSelect} />
+      ) : Renderer ? (
         <Renderer output={output} />
       ) : (
         <pre className="max-h-64 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-600">

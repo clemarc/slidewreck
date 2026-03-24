@@ -3,6 +3,7 @@
 import type { StepState } from '@/lib/mastra-client';
 import { WORKFLOW_STEPS } from '@/lib/workflow-steps';
 import type { RunStatus } from '@/lib/mastra-client';
+import { StepOutputPanel } from '@/components/step-output-panel';
 
 /**
  * Derive the display status for a step given the API step records.
@@ -82,9 +83,11 @@ function StepIcon({ status, isActive }: { status: RunStatus; isActive: boolean }
 
 export interface StepProgressProps {
   steps: Record<string, StepState> | undefined;
+  expandedStepId?: string | null;
+  onStepClick?: (stepId: string) => void;
 }
 
-export function StepProgress({ steps }: StepProgressProps) {
+export function StepProgress({ steps, expandedStepId, onStepClick }: StepProgressProps) {
   const activeStepId = findActiveStepId(steps);
 
   return (
@@ -93,41 +96,66 @@ export function StepProgress({ steps }: StepProgressProps) {
         const status = deriveStepStatus(meta.id, steps);
         const isActive = meta.id === activeStepId;
         const isLast = index === WORKFLOW_STEPS.length - 1;
+        const isCompleted = status === 'success';
+        const isClickable = isCompleted && typeof onStepClick === 'function';
+        const isExpanded = expandedStepId === meta.id;
+        const stepState = steps?.[meta.id];
 
         return (
-          <div key={meta.id} className="flex items-start gap-3">
-            <div className="flex flex-col items-center">
-              <StepIcon status={status} isActive={isActive} />
-              {!isLast && (
-                <div
-                  className={`h-4 w-0.5 ${
-                    status === 'success' ? 'bg-green-300' : 'bg-gray-200'
-                  }`}
-                />
-              )}
-            </div>
-            <div className={`flex items-center gap-2 pb-3 ${isActive ? 'font-medium' : ''}`}>
-              <span
-                className={
-                  status === 'success'
-                    ? 'text-green-700'
-                    : status === 'failed'
-                      ? 'text-red-700'
-                      : status === 'suspended'
-                        ? 'text-blue-600'
-                        : status === 'running'
-                          ? 'text-yellow-700'
-                          : 'text-gray-500'
-                }
-              >
-                {meta.label}
-              </span>
-              {meta.canSuspend && (
-                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
-                  Gate
+          <div key={meta.id}>
+            <div
+              className={`flex items-start gap-3 ${isClickable ? 'cursor-pointer rounded-md px-1 -mx-1 hover:bg-gray-50' : ''}`}
+              onClick={isClickable ? () => onStepClick(meta.id) : undefined}
+            >
+              <div className="flex flex-col items-center">
+                <StepIcon status={status} isActive={isActive} />
+                {!isLast && !isExpanded && (
+                  <div
+                    className={`h-4 w-0.5 ${
+                      status === 'success' ? 'bg-green-300' : 'bg-gray-200'
+                    }`}
+                  />
+                )}
+              </div>
+              <div className={`flex items-center gap-2 pb-3 ${isActive ? 'font-medium' : ''}`}>
+                <span
+                  className={
+                    status === 'success'
+                      ? 'text-green-700'
+                      : status === 'failed'
+                        ? 'text-red-700'
+                        : status === 'suspended'
+                          ? 'text-blue-600'
+                          : status === 'running'
+                            ? 'text-yellow-700'
+                            : 'text-gray-500'
+                  }
+                >
+                  {meta.label}
                 </span>
-              )}
+                {meta.canSuspend && (
+                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
+                    Gate
+                  </span>
+                )}
+                {isClickable && (
+                  <span className="text-[10px] text-gray-400">
+                    {isExpanded ? '▼' : '▶'}
+                  </span>
+                )}
+              </div>
             </div>
+
+            {isExpanded && stepState && (
+              <div className="mb-2 ml-9">
+                <StepOutputPanel stepId={meta.id} stepState={stepState} />
+                {!isLast && (
+                  <div className="ml-[-21px] flex justify-center">
+                    <div className="h-4 w-0.5 bg-green-300" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { MastraClient, MastraApiError } from '@/lib/mastra-client';
+import type { StructureOption } from '@/components/gate-content/structure-gate';
 
 export function buildStructureApprovePayload(selectedTitle: string, extraFeedback: string) {
   const feedback = extraFeedback.trim()
@@ -14,31 +15,24 @@ export function buildStructureRejectPayload(feedback: string) {
   return { decision: 'reject' as const, feedback };
 }
 
-interface StructureOption {
-  title: string;
-  description: string;
-  sections: { title: string; purpose: string; contentWordCount: number; estimatedMinutes: number }[];
-  rationale: string;
-}
-
 export interface StructureControlsProps {
   workflowId: string;
   runId: string;
   stepId: string;
   output: unknown;
+  selectedIndex?: number | null;
   onResumed: () => void;
 }
 
-export function StructureControls({ workflowId, runId, stepId, output, onResumed }: StructureControlsProps) {
+export function StructureControls({ workflowId, runId, stepId, output, selectedIndex, onResumed }: StructureControlsProps) {
   const options = (output as { options?: StructureOption[] })?.options ?? [];
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');
   const clientRef = useRef(new MastraClient());
 
   async function handleApprove() {
-    if (submitting || selectedIndex === null) return;
+    if (submitting || selectedIndex == null || selectedIndex < 0 || selectedIndex >= options.length) return;
     setSubmitting(true);
     setApiError('');
 
@@ -75,29 +69,14 @@ export function StructureControls({ workflowId, runId, stepId, output, onResumed
     }
   }
 
+  const hasSelection = selectedIndex != null && selectedIndex >= 0 && selectedIndex < options.length;
+  const selectedTitle = hasSelection ? options[selectedIndex].title : null;
+
   return (
     <div className="space-y-3">
-      <div className="space-y-2">
-        {options.map((option, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedIndex(i)}
-            disabled={submitting}
-            className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
-              selectedIndex === i
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-400'
-            } disabled:opacity-50`}
-          >
-            <p className="text-sm font-semibold">{option.title}</p>
-            <p className="mt-1 text-xs text-gray-600">{option.description}</p>
-            <p className="mt-1 text-xs text-gray-400">
-              {option.sections.length} sections &middot;{' '}
-              {option.sections.reduce((sum, s) => sum + s.estimatedMinutes, 0)} min
-            </p>
-          </button>
-        ))}
-      </div>
+      {!hasSelection && (
+        <p className="text-sm text-gray-500 italic">Click a structure option above to select it.</p>
+      )}
 
       <textarea
         value={feedback}
@@ -117,10 +96,10 @@ export function StructureControls({ workflowId, runId, stepId, output, onResumed
       <div className="flex gap-3">
         <button
           onClick={handleApprove}
-          disabled={submitting || selectedIndex === null}
+          disabled={submitting || !hasSelection}
           className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? 'Submitting...' : 'Approve Selected'}
+          {submitting ? 'Submitting...' : selectedTitle ? `Approve: ${selectedTitle}` : 'Select an option'}
         </button>
         <button
           onClick={handleReject}

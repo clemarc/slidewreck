@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useRunStatus, TERMINAL_STATUSES } from '@/lib/use-run-status';
@@ -42,9 +43,15 @@ export default function RunStatusPage() {
   const params = useParams<{ runId: string }>();
   const runId = params.runId;
   const { run, error, loading, refetch } = useRunStatus('slidewreck', runId);
+  const [selectedStructureIndex, setSelectedStructureIndex] = useState<number | null>(null);
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
+
+  function handleStepClick(stepId: string) {
+    setExpandedStepId((prev) => (prev === stepId ? null : stepId));
+  }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-16">
+    <main className="mx-auto max-w-4xl px-4 py-16">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Run Status</h1>
         <div className="flex gap-3">
@@ -80,7 +87,11 @@ export default function RunStatusPage() {
             </div>
 
             <div className="mt-6">
-              <StepProgress steps={run.steps} />
+              <StepProgress
+                steps={run.steps}
+                expandedStepId={expandedStepId}
+                onStepClick={handleStepClick}
+              />
             </div>
 
             {run.status === 'success' && (
@@ -100,21 +111,26 @@ export default function RunStatusPage() {
             {run.status === 'suspended' && (() => {
               const gate = findSuspendedStep(run.steps);
               if (!gate) return null;
+              const gateId = gate.suspendPayload.gateId ?? gate.stepId;
+              const isArchitectGate = gateId === 'architect-structure';
               return (
                 <div className="mt-6 space-y-4">
                   <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
                     <GateContent
-                      gateId={gate.suspendPayload.gateId ?? gate.stepId}
+                      gateId={gateId}
                       output={gate.suspendPayload.output}
                       summary={gate.suspendPayload.summary}
+                      selectedIndex={isArchitectGate ? selectedStructureIndex : undefined}
+                      onSelect={isArchitectGate ? setSelectedStructureIndex : undefined}
                     />
                   </div>
                   <GateControls
-                    gateId={gate.suspendPayload.gateId ?? gate.stepId}
+                    gateId={gateId}
                     workflowId="slidewreck"
                     runId={runId}
                     stepId={gate.stepId}
                     output={gate.suspendPayload.output}
+                    selectedIndex={isArchitectGate ? selectedStructureIndex : undefined}
                     onResumed={refetch}
                   />
                 </div>
