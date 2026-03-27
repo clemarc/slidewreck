@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { MastraClient, MastraApiError } from '@/lib/mastra-client';
+import { MastraClient, MastraApiError, extractRunDisplayInfo } from '@/lib/mastra-client';
 import type { WorkflowRun, RunStatus } from '@/lib/mastra-client';
+import { relativeTime } from '@/lib/format';
 
 function StatusDot({ status }: { status: RunStatus }) {
   const colors: Record<string, string> = {
@@ -15,14 +16,6 @@ function StatusDot({ status }: { status: RunStatus }) {
     pending: 'bg-gray-300',
   };
   return <div className={`h-2.5 w-2.5 rounded-full ${colors[status] ?? 'bg-gray-300'}`} />;
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleString();
-  } catch {
-    return dateStr;
-  }
 }
 
 function statusLabel(status: RunStatus): string {
@@ -100,20 +93,30 @@ export default function HistoryPage() {
 
         {!loading && !error && runs.length > 0 && (
           <div className="space-y-2">
-            {runs.map((run) => (
-              <Link
-                key={run.runId}
-                href={`/run/${run.runId}`}
-                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50"
-              >
-                <StatusDot status={run.status} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-xs text-gray-600">{run.runId}</p>
-                  <p className="text-xs text-gray-400">{formatDate(run.createdAt)}</p>
-                </div>
-                <span className="text-xs text-gray-500">{statusLabel(run.status)}</span>
-              </Link>
-            ))}
+            {runs.map((run) => {
+              const { title, format } = extractRunDisplayInfo(run);
+              return (
+                <Link
+                  key={run.runId}
+                  href={`/run/${run.runId}`}
+                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50"
+                >
+                  <StatusDot status={run.status} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{title}</p>
+                    <p className="flex items-center gap-2 text-xs text-gray-400">
+                      {format && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                          {format}
+                        </span>
+                      )}
+                      <span title={run.createdAt}>{relativeTime(run.createdAt)}</span>
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500">{statusLabel(run.status)}</span>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
